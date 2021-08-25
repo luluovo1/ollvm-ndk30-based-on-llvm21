@@ -148,7 +148,6 @@ LOCAL_EXPORT_C_INCLUDES := $(libcxx_export_includes)
 LOCAL_EXPORT_CPPFLAGS := $(libcxx_export_cxxflags)
 LOCAL_EXPORT_LDFLAGS := $(libcxx_export_ldflags)
 LOCAL_STATIC_LIBRARIES := libc++abi
-LOCAL_ARM_NEON := false
 
 ifeq ($(NDK_PLATFORM_NEEDS_ANDROID_SUPPORT),true)
     LOCAL_STATIC_LIBRARIES += android_support
@@ -177,7 +176,6 @@ LOCAL_LDFLAGS := $(libcxx_ldflags)
 # driver always links for C++ but we don't use.
 # See https://github.com/android-ndk/ndk/issues/105
 LOCAL_LDFLAGS += -Wl,--as-needed
-LOCAL_ARM_NEON := false
 LOCAL_STATIC_LIBRARIES += libunwind
 LOCAL_EXPORT_STATIC_LIBRARIES += libunwind
 
