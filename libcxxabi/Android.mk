@@ -53,7 +53,7 @@ ifneq ($(LIBCXX_FORCE_REBUILD),true) # Using prebuilt
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := libc++abi
-LOCAL_SRC_FILES := ../llvm-libc++/libs/$(TARGET_ARCH_ABI)/$(LOCAL_MODULE)$(TARGET_LIB_EXTENSION)
+LOCAL_SRC_FILES := $(SYSROOT_LIB_DIR)/$(LOCAL_MODULE)$(TARGET_LIB_EXTENSION)
 LOCAL_EXPORT_C_INCLUDES := $(LOCAL_PATH)/include
 
 # Unlike the platform build, ndk-build will actually perform dependency checking

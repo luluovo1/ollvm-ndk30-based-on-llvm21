@@ -9,7 +9,7 @@ LOCAL_PATH := $(call my-dir)
 
 LIBCXX_FORCE_REBUILD := $(strip $(LIBCXX_FORCE_REBUILD))
 ifndef LIBCXX_FORCE_REBUILD
-  ifeq (,$(strip $(wildcard $(LOCAL_PATH)/libs/$(TARGET_ARCH_ABI)/libc++_static$(TARGET_LIB_EXTENSION))))
+  ifeq (,$(strip $(wildcard $(SYSROOT_LIB_DIR)/libc++_static$(TARGET_LIB_EXTENSION))))
     $(call __ndk_info,WARNING: Rebuilding libc++ libraries from sources!)
     $(call __ndk_info,You might want to use $$NDK/build/tools/build-cxx-stl.sh --stl=libc++)
     $(call __ndk_info,in order to build prebuilt versions to speed up your builds!)
@@ -92,7 +92,7 @@ libcxxabi_c_includes := $(LOCAL_PATH)/../llvm-libc++abi/include
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := c++_static
-LOCAL_SRC_FILES := libs/$(TARGET_ARCH_ABI)/lib$(LOCAL_MODULE)$(TARGET_LIB_EXTENSION)
+LOCAL_SRC_FILES := $(SYSROOT_LIB_DIR)/lib$(LOCAL_MODULE)$(TARGET_LIB_EXTENSION)
 LOCAL_EXPORT_C_INCLUDES := $(libcxx_export_includes)
 LOCAL_STATIC_LIBRARIES := libc++abi
 LOCAL_EXPORT_CPPFLAGS := $(libcxx_export_cxxflags)
@@ -112,7 +112,7 @@ include $(PREBUILT_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := c++_shared
-LOCAL_SRC_FILES := libs/$(TARGET_ARCH_ABI)/lib$(LOCAL_MODULE)$(TARGET_SONAME_EXTENSION)
+LOCAL_SRC_FILES := $(SYSROOT_LIB_DIR)/lib$(LOCAL_MODULE)$(TARGET_SONAME_EXTENSION)
 LOCAL_EXPORT_C_INCLUDES := \
     $(libcxx_export_includes) \
     $(libcxxabi_c_includes) \
