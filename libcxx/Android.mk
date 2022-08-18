@@ -97,17 +97,7 @@ LOCAL_EXPORT_C_INCLUDES := $(libcxx_export_includes)
 LOCAL_STATIC_LIBRARIES := libc++abi
 LOCAL_EXPORT_CPPFLAGS := $(libcxx_export_cxxflags)
 LOCAL_EXPORT_LDFLAGS := $(libcxx_export_ldflags)
-LOCAL_EXPORT_STATIC_LIBRARIES := libc++abi
-
-ifeq ($(NDK_PLATFORM_NEEDS_ANDROID_SUPPORT),true)
-    # This doesn't affect the prebuilt itself since this is a prebuilt library,
-    # but the build system needs to know about the dependency so we can sort the
-    # exported includes properly.
-    LOCAL_STATIC_LIBRARIES += libandroid_support
-    LOCAL_EXPORT_STATIC_LIBRARIES += libandroid_support
-endif
-
-LOCAL_EXPORT_STATIC_LIBRARIES += libunwind
+LOCAL_EXPORT_STATIC_LIBRARIES := libc++abi libunwind
 include $(PREBUILT_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
@@ -119,15 +109,6 @@ LOCAL_EXPORT_C_INCLUDES := \
 
 LOCAL_EXPORT_CPPFLAGS := $(libcxx_export_cxxflags)
 LOCAL_EXPORT_LDFLAGS := $(libcxx_export_ldflags)
-
-ifeq ($(NDK_PLATFORM_NEEDS_ANDROID_SUPPORT),true)
-    # This doesn't affect the prebuilt itself since this is a prebuilt library,
-    # but the build system needs to know about the dependency so we can sort the
-    # exported includes properly.
-    LOCAL_STATIC_LIBRARIES := libandroid_support
-    LOCAL_EXPORT_STATIC_LIBRARIES := libandroid_support
-endif
-
 LOCAL_EXPORT_STATIC_LIBRARIES += libunwind
 include $(PREBUILT_SHARED_LIBRARY)
 
@@ -150,10 +131,6 @@ LOCAL_EXPORT_LDFLAGS := $(libcxx_export_ldflags)
 LOCAL_STATIC_LIBRARIES := libc++abi
 LOCAL_ARM_NEON := false
 
-ifeq ($(NDK_PLATFORM_NEEDS_ANDROID_SUPPORT),true)
-    LOCAL_STATIC_LIBRARIES += android_support
-endif
-
 LOCAL_STATIC_LIBRARIES += libunwind
 LOCAL_EXPORT_STATIC_LIBRARIES += libunwind
 include $(BUILD_STATIC_LIBRARY)
@@ -169,9 +146,6 @@ LOCAL_WHOLE_STATIC_LIBRARIES := libc++abi
 LOCAL_EXPORT_C_INCLUDES := $(libcxx_export_includes)
 LOCAL_EXPORT_CPPFLAGS := $(libcxx_export_cxxflags)
 LOCAL_EXPORT_LDFLAGS := $(libcxx_export_ldflags)
-ifeq ($(NDK_PLATFORM_NEEDS_ANDROID_SUPPORT),true)
-    LOCAL_STATIC_LIBRARIES := android_support
-endif
 LOCAL_LDFLAGS := $(libcxx_ldflags)
 # Use --as-needed to strip the DT_NEEDED on libstdc++.so (bionic's) that the
 # driver always links for C++ but we don't use.
@@ -191,5 +165,3 @@ $(call import-add-path, $(LOCAL_PATH)/../../..)
 $(call import-module, toolchain/llvm-project/libcxxabi)
 
 endif # LIBCXX_FORCE_REBUILD == true
-
-$(call import-module, android/support)

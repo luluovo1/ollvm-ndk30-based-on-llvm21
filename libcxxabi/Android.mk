@@ -99,5 +99,3 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := libunwind
 LOCAL_SRC_FILES := $(NDK_TOOLCHAIN_LIB_DIR)/$(TARGET_TOOLCHAIN_ARCH_LIB_DIR)/libunwind.a
 include $(PREBUILT_STATIC_LIBRARY)
-
-$(call import-module, android/support)
