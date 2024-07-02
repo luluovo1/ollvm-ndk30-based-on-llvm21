@@ -173,6 +173,7 @@ ifeq ($(NDK_PLATFORM_NEEDS_ANDROID_SUPPORT),true)
     LOCAL_STATIC_LIBRARIES := android_support
 endif
 LOCAL_LDFLAGS := $(libcxx_ldflags)
+LOCAL_LDFLAGS += -Wl,-z,max-page-size=16384
 # Use --as-needed to strip the DT_NEEDED on libstdc++.so (bionic's) that the
 # driver always links for C++ but we don't use.
 # See https://github.com/android-ndk/ndk/issues/105
