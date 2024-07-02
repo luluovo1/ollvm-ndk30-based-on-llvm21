@@ -177,7 +177,11 @@ LOCAL_LDFLAGS := $(libcxx_ldflags)
 # driver always links for C++ but we don't use.
 # See https://github.com/android-ndk/ndk/issues/105
 LOCAL_LDFLAGS += -Wl,--as-needed
+<<<<<<< HEAD   (9de893 Snap for 7250032 from 9116b0a9b1ed958d90898733360924346a8a40)
 LOCAL_ARM_NEON := false
+=======
+LOCAL_LDFLAGS += -Wl,-z,max-page-size=16384
+>>>>>>> CHANGE (58ae6d libc++ 16KB aligned for NDK r25c)
 LOCAL_STATIC_LIBRARIES += libunwind
 LOCAL_EXPORT_STATIC_LIBRARIES += libunwind
 
