@@ -16,6 +16,24 @@
       "message": "We don\u0027t want any local changes to this project beyond merge commits.  CR-2 (because this project doesn\u0027t have an explicit OWNERS file - for the same reasons) while I look into this closer.",
       "revId": "4435975f293fa39c263deaf9c5e1caecc7dd3384",
       "serverId": "85c56323-6fa9-3386-8a01-6480fb634889"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "4fcfc400_1708fa49",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 3559435
+      },
+      "writtenOn": "2024-07-31T22:35:58Z",
+      "side": 1,
+      "message": "Is this a mirror of an external repo?",
+      "parentUuid": "aa395f3c_5c5aa906",
+      "revId": "4435975f293fa39c263deaf9c5e1caecc7dd3384",
+      "serverId": "85c56323-6fa9-3386-8a01-6480fb634889"
     }
   ]
 }
