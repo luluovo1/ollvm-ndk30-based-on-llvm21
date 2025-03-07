@@ -177,11 +177,11 @@ ProcEntityDetails::ProcEntityDetails(EntityDetails &&d)
     : EntityDetails(std::move(d)) {}
 
 UseErrorDetails::UseErrorDetails(const UseDetails &useDetails) {
-  add_occurrence(useDetails.location(), *GetUsedModule(useDetails).scope());
+  add_occurrence(useDetails.location(), useDetails.symbol());
 }
 UseErrorDetails &UseErrorDetails::add_occurrence(
-    const SourceName &location, const Scope &module) {
-  occurrences_.push_back(std::make_pair(location, &module));
+    const SourceName &location, const Symbol &used) {
+  occurrences_.push_back(std::make_pair(location, &used));
   return *this;
 }
 
@@ -210,8 +210,9 @@ const Symbol *GenericDetails::CheckSpecific() const {
 }
 Symbol *GenericDetails::CheckSpecific() {
   if (specific_ && !specific_->has<UseErrorDetails>()) {
+    const Symbol &ultimate{specific_->GetUltimate()};
     for (const Symbol &proc : specificProcs_) {
-      if (&proc == specific_) {
+      if (&proc.GetUltimate() == &ultimate) {
         return nullptr;
       }
     }
@@ -556,9 +557,8 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const Details &details) {
           [&](const UseErrorDetails &x) {
             os << " uses:";
             char sep{':'};
-            for (const auto &[location, module] : x.occurrences()) {
-              os << sep << " from " << module->GetName().value() << " at "
-                 << location;
+            for (const auto &[location, sym] : x.occurrences()) {
+              os << sep << " from " << sym->name() << " at " << location;
               sep = ',';
             }
           },

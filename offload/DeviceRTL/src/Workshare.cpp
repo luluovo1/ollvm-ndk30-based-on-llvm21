@@ -14,12 +14,12 @@
 
 #include "Workshare.h"
 #include "Debug.h"
+#include "DeviceTypes.h"
+#include "DeviceUtils.h"
 #include "Interface.h"
 #include "Mapping.h"
 #include "State.h"
 #include "Synchronization.h"
-#include "Types.h"
-#include "Utils.h"
 
 using namespace ompx;
 
@@ -79,7 +79,7 @@ template <typename T, typename ST> struct omptarget_nvptx_LoopSupport {
     lb = lb + entityId * chunk;
     T inputUb = ub;
     ub = lb + chunk - 1; // Clang uses i <= ub
-    // Say ub' is the begining of the last chunk. Then who ever has a
+    // Say ub' is the beginning of the last chunk. Then who ever has a
     // lower bound plus a multiple of the increment equal to ub' is
     // the last one.
     T beginingLastChunk = inputUb - (inputUb % chunk);
@@ -349,7 +349,7 @@ template <typename T, typename ST> struct omptarget_nvptx_LoopSupport {
     if (rank == 0) {
       warp_res = atomic::add(&Cnt, change, atomic::seq_cst);
     }
-    warp_res = utils::shuffle(active, warp_res, leader);
+    warp_res = utils::shuffle(active, warp_res, leader, mapping::getWarpSize());
     return warp_res + rank;
   }
 
@@ -806,7 +806,7 @@ public:
                                 NumIters, OneIterationPerThread);
   }
 
-  /// Worksharing `distrbute`-loop.
+  /// Worksharing `distribute`-loop.
   static void Distribute(IdentTy *Loc, void (*LoopBody)(Ty, void *), void *Arg,
                          Ty NumIters, Ty BlockChunk) {
     ASSERT(icv::Level == 0, "Bad distribute");
@@ -853,7 +853,7 @@ public:
     ASSERT(state::ParallelTeamSize == 1, "Bad distribute");
   }
 
-  /// Worksharing `distrbute parallel for`-loop.
+  /// Worksharing `distribute parallel for`-loop.
   static void DistributeFor(IdentTy *Loc, void (*LoopBody)(Ty, void *),
                             void *Arg, Ty NumIters, Ty NumThreads,
                             Ty BlockChunk, Ty ThreadChunk) {

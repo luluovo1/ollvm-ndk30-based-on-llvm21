@@ -43,8 +43,6 @@ infrastructure are described first, followed by tool-specific sections.
 Major New Features
 ------------------
 
-...
-
 Improvements to clangd
 ----------------------
 
@@ -87,11 +85,6 @@ Improvements to clang-doc
 Improvements to clang-query
 ---------------------------
 
-Improvements to clang-rename
-----------------------------
-
-The improvements are...
-
 Improvements to clang-tidy
 --------------------------
 
@@ -104,17 +97,9 @@ New check aliases
 Changes in existing checks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Improved :doc:`modernize-use-std-format
-  <clang-tidy/checks/modernize/use-std-format>` check to support replacing
-  member function calls too.
-
-- Improved :doc:`modernize-use-std-print
-  <clang-tidy/checks/modernize/use-std-print>` check to support replacing
-  member function calls too.
-
-- Improved :doc:`readability-redundant-smartptr-get
-  <clang-tidy/checks/readability/redundant-smartptr-get>` check to
-  remove `->`, when redundant `get()` is removed.
+- Improved :doc:`bugprone-unsafe-functions
+  <clang-tidy/checks/bugprone/unsafe-functions>` check to allow specifying
+  additional C++ member functions to match.
 
 Removed checks
 ^^^^^^^^^^^^^^

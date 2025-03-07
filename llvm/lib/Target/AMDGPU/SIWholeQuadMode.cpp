@@ -128,6 +128,7 @@ struct InstrInfo {
   char Needs = 0;
   char Disabled = 0;
   char OutNeeds = 0;
+  char MarkedStates = 0;
 };
 
 struct BlockInfo {
@@ -175,9 +176,10 @@ private:
 
   SmallVector<MachineInstr *, 2> LiveMaskQueries;
   SmallVector<MachineInstr *, 4> LowerToMovInstrs;
-  SmallVector<MachineInstr *, 4> LowerToCopyInstrs;
+  SmallSetVector<MachineInstr *, 4> LowerToCopyInstrs;
   SmallVector<MachineInstr *, 4> KillInstrs;
   SmallVector<MachineInstr *, 4> InitExecInstrs;
+  SmallVector<MachineInstr *, 4> SetInactiveInstrs;
 
   void printInfo();
 
@@ -210,14 +212,12 @@ private:
                       MachineBasicBlock::iterator Before, Register SavedOrig,
                       char NonStrictState, char CurrentStrictState);
 
-  MachineBasicBlock *splitBlock(MachineBasicBlock *BB, MachineInstr *TermMI);
+  void splitBlock(MachineInstr *TermMI);
+  MachineInstr *lowerKillI1(MachineInstr &MI, bool IsWQM);
+  MachineInstr *lowerKillF32(MachineInstr &MI);
 
-  MachineInstr *lowerKillI1(MachineBasicBlock &MBB, MachineInstr &MI,
-                            bool IsWQM);
-  MachineInstr *lowerKillF32(MachineBasicBlock &MBB, MachineInstr &MI);
-
-  void lowerBlock(MachineBasicBlock &MBB);
-  void processBlock(MachineBasicBlock &MBB, bool IsEntry);
+  void lowerBlock(MachineBasicBlock &MBB, BlockInfo &BI);
+  void processBlock(MachineBasicBlock &MBB, BlockInfo &BI, bool IsEntry);
 
   bool lowerLiveMaskQueries();
   bool lowerCopyInstrs();
@@ -295,6 +295,9 @@ void SIWholeQuadMode::markInstruction(MachineInstr &MI, char Flag,
 
   assert(!(Flag & StateExact) && Flag != 0);
 
+  // Capture all states requested in marking including disabled ones.
+  II.MarkedStates |= Flag;
+
   // Remove any disabled states from the flag. The user that required it gets
   // an undefined value in the helper lanes. For example, this can happen if
   // the result of an atomic is used by instruction that requires WQM, where
@@ -361,8 +364,8 @@ void SIWholeQuadMode::markDefs(const MachineInstr &UseMI, LiveRange &LR,
 
       // Find next predecessor to process
       unsigned Idx = NextPredIdx;
-      auto PI = MBB->pred_begin() + Idx;
-      auto PE = MBB->pred_end();
+      const auto *PI = MBB->pred_begin() + Idx;
+      const auto *PE = MBB->pred_end();
       for (; PI != PE && !NextValue; ++PI, ++Idx) {
         if (const VNInfo *VN = LR.getVNInfoBefore(LIS->getMBBEndIdx(*PI))) {
           if (!Visited.count(VisitKey(VN, DefinedLanes)))
@@ -478,7 +481,6 @@ char SIWholeQuadMode::scanInstructions(MachineFunction &MF,
                                        std::vector<WorkItem> &Worklist) {
   char GlobalFlags = 0;
   bool WQMOutputs = MF.getFunction().hasFnAttribute("amdgpu-ps-wqm-outputs");
-  SmallVector<MachineInstr *, 4> SetInactiveInstrs;
   SmallVector<MachineInstr *, 4> SoftWQMInstrs;
   bool HasImplicitDerivatives =
       MF.getFunction().getCallingConv() == CallingConv::AMDGPU_PS;
@@ -512,9 +514,9 @@ char SIWholeQuadMode::scanInstructions(MachineFunction &MF,
         // The WQM intrinsic requires its output to have all the helper lanes
         // correct, so we need it to be in WQM.
         Flags = StateWQM;
-        LowerToCopyInstrs.push_back(&MI);
+        LowerToCopyInstrs.insert(&MI);
       } else if (Opcode == AMDGPU::SOFT_WQM) {
-        LowerToCopyInstrs.push_back(&MI);
+        LowerToCopyInstrs.insert(&MI);
         SoftWQMInstrs.push_back(&MI);
       } else if (Opcode == AMDGPU::STRICT_WWM) {
         // The STRICT_WWM intrinsic doesn't make the same guarantee, and plus
@@ -553,18 +555,18 @@ char SIWholeQuadMode::scanInstructions(MachineFunction &MF,
         // This avoid unnecessarily marking M0 as requiring WQM.
         III.Needs |= StateStrictWQM;
         GlobalFlags |= StateStrictWQM;
-      } else if (Opcode == AMDGPU::V_SET_INACTIVE_B32 ||
-                 Opcode == AMDGPU::V_SET_INACTIVE_B64) {
+      } else if (Opcode == AMDGPU::V_SET_INACTIVE_B32) {
+        // Disable strict states; StrictWQM will be added as required later.
         III.Disabled = StateStrict;
-        MachineOperand &Inactive = MI.getOperand(2);
+        MachineOperand &Inactive = MI.getOperand(4);
         if (Inactive.isReg()) {
-          if (Inactive.isUndef()) {
-            LowerToCopyInstrs.push_back(&MI);
-          } else {
+          if (Inactive.isUndef() && MI.getOperand(3).getImm() == 0)
+            LowerToCopyInstrs.insert(&MI);
+          else
             markOperand(MI, Inactive, StateStrictWWM, Worklist);
-          }
         }
         SetInactiveInstrs.push_back(&MI);
+        BBI.NeedsLowering = true;
       } else if (TII->isDisableWQM(MI)) {
         BBI.Needs |= StateExact;
         if (!(BBI.InNeeds & StateExact)) {
@@ -582,7 +584,8 @@ char SIWholeQuadMode::scanInstructions(MachineFunction &MF,
         KillInstrs.push_back(&MI);
         BBI.NeedsLowering = true;
       } else if (Opcode == AMDGPU::SI_INIT_EXEC ||
-                 Opcode == AMDGPU::SI_INIT_EXEC_FROM_INPUT) {
+                 Opcode == AMDGPU::SI_INIT_EXEC_FROM_INPUT ||
+                 Opcode == AMDGPU::SI_INIT_WHOLE_WAVE) {
         InitExecInstrs.push_back(&MI);
       } else if (WQMOutputs) {
         // The function is in machine SSA form, which means that physical
@@ -741,8 +744,8 @@ SIWholeQuadMode::saveSCC(MachineBasicBlock &MBB,
   return Restore;
 }
 
-MachineBasicBlock *SIWholeQuadMode::splitBlock(MachineBasicBlock *BB,
-                                               MachineInstr *TermMI) {
+void SIWholeQuadMode::splitBlock(MachineInstr *TermMI) {
+  MachineBasicBlock *BB = TermMI->getParent();
   LLVM_DEBUG(dbgs() << "Split block " << printMBBReference(*BB) << " @ "
                     << *TermMI << "\n");
 
@@ -781,7 +784,7 @@ MachineBasicBlock *SIWholeQuadMode::splitBlock(MachineBasicBlock *BB,
     }
     DTUpdates.push_back({DomTreeT::Insert, BB, SplitBB});
     if (MDT)
-      MDT->getBase().applyUpdates(DTUpdates);
+      MDT->applyUpdates(DTUpdates);
     if (PDT)
       PDT->applyUpdates(DTUpdates);
 
@@ -791,12 +794,9 @@ MachineBasicBlock *SIWholeQuadMode::splitBlock(MachineBasicBlock *BB,
             .addMBB(SplitBB);
     LIS->InsertMachineInstrInMaps(*MI);
   }
-
-  return SplitBB;
 }
 
-MachineInstr *SIWholeQuadMode::lowerKillF32(MachineBasicBlock &MBB,
-                                            MachineInstr &MI) {
+MachineInstr *SIWholeQuadMode::lowerKillF32(MachineInstr &MI) {
   assert(LiveMaskReg.isVirtual());
 
   const DebugLoc &DL = MI.getDebugLoc();
@@ -864,6 +864,8 @@ MachineInstr *SIWholeQuadMode::lowerKillF32(MachineBasicBlock &MBB,
     llvm_unreachable("invalid ISD:SET cond code");
   }
 
+  MachineBasicBlock &MBB = *MI.getParent();
+
   // Pick opcode based on comparison type.
   MachineInstr *VcmpMI;
   const MachineOperand &Op0 = MI.getOperand(0);
@@ -914,9 +916,10 @@ MachineInstr *SIWholeQuadMode::lowerKillF32(MachineBasicBlock &MBB,
   return NewTerm;
 }
 
-MachineInstr *SIWholeQuadMode::lowerKillI1(MachineBasicBlock &MBB,
-                                           MachineInstr &MI, bool IsWQM) {
+MachineInstr *SIWholeQuadMode::lowerKillI1(MachineInstr &MI, bool IsWQM) {
   assert(LiveMaskReg.isVirtual());
+
+  MachineBasicBlock &MBB = *MI.getParent();
 
   const DebugLoc &DL = MI.getDebugLoc();
   MachineInstr *MaskUpdateMI = nullptr;
@@ -955,7 +958,7 @@ MachineInstr *SIWholeQuadMode::lowerKillI1(MachineBasicBlock &MBB,
       // so exec mask needs to be factored in.
       TmpReg = MRI->createVirtualRegister(TRI->getBoolRC());
       ComputeKilledMaskMI =
-          BuildMI(MBB, MI, DL, TII->get(XorOpc), TmpReg).add(Op).addReg(Exec);
+          BuildMI(MBB, MI, DL, TII->get(AndN2Opc), TmpReg).addReg(Exec).add(Op);
       MaskUpdateMI = BuildMI(MBB, MI, DL, TII->get(AndN2Opc), LiveMaskReg)
                          .addReg(LiveMaskReg)
                          .addReg(TmpReg);
@@ -1030,33 +1033,46 @@ MachineInstr *SIWholeQuadMode::lowerKillI1(MachineBasicBlock &MBB,
 // Replace (or supplement) instructions accessing live mask.
 // This can only happen once all the live mask registers have been created
 // and the execute state (WQM/StrictWWM/Exact) of instructions is known.
-void SIWholeQuadMode::lowerBlock(MachineBasicBlock &MBB) {
-  auto BII = Blocks.find(&MBB);
-  if (BII == Blocks.end())
-    return;
-
-  const BlockInfo &BI = BII->second;
+void SIWholeQuadMode::lowerBlock(MachineBasicBlock &MBB, BlockInfo &BI) {
   if (!BI.NeedsLowering)
     return;
 
   LLVM_DEBUG(dbgs() << "\nLowering block " << printMBBReference(MBB) << ":\n");
 
   SmallVector<MachineInstr *, 4> SplitPoints;
+  Register ActiveLanesReg = 0;
   char State = BI.InitialState;
 
   for (MachineInstr &MI : llvm::make_early_inc_range(
            llvm::make_range(MBB.getFirstNonPHI(), MBB.end()))) {
-    if (StateTransition.count(&MI))
-      State = StateTransition[&MI];
+    auto MIState = StateTransition.find(&MI);
+    if (MIState != StateTransition.end())
+      State = MIState->second;
 
     MachineInstr *SplitPoint = nullptr;
     switch (MI.getOpcode()) {
     case AMDGPU::SI_DEMOTE_I1:
     case AMDGPU::SI_KILL_I1_TERMINATOR:
-      SplitPoint = lowerKillI1(MBB, MI, State == StateWQM);
+      SplitPoint = lowerKillI1(MI, State == StateWQM);
       break;
     case AMDGPU::SI_KILL_F32_COND_IMM_TERMINATOR:
-      SplitPoint = lowerKillF32(MBB, MI);
+      SplitPoint = lowerKillF32(MI);
+      break;
+    case AMDGPU::ENTER_STRICT_WWM:
+      ActiveLanesReg = MI.getOperand(0).getReg();
+      break;
+    case AMDGPU::EXIT_STRICT_WWM:
+      ActiveLanesReg = 0;
+      break;
+    case AMDGPU::V_SET_INACTIVE_B32:
+      if (ActiveLanesReg) {
+        LiveInterval &LI = LIS->getInterval(MI.getOperand(5).getReg());
+        MRI->constrainRegClass(ActiveLanesReg, TRI->getWaveMaskRegClass());
+        MI.getOperand(5).setReg(ActiveLanesReg);
+        LIS->shrinkToUses(&LI);
+      } else {
+        assert(State == StateExact || State == StateWQM);
+      }
       break;
     default:
       break;
@@ -1066,12 +1082,8 @@ void SIWholeQuadMode::lowerBlock(MachineBasicBlock &MBB) {
   }
 
   // Perform splitting after instruction scan to simplify iteration.
-  if (!SplitPoints.empty()) {
-    MachineBasicBlock *BB = &MBB;
-    for (MachineInstr *MI : SplitPoints) {
-      BB = splitBlock(BB, MI);
-    }
-  }
+  for (MachineInstr *MI : SplitPoints)
+    splitBlock(MI);
 }
 
 // Return an iterator in the (inclusive) range [First, Last] at which
@@ -1238,13 +1250,8 @@ void SIWholeQuadMode::fromStrictMode(MachineBasicBlock &MBB,
   StateTransition[MI] = NonStrictState;
 }
 
-void SIWholeQuadMode::processBlock(MachineBasicBlock &MBB, bool IsEntry) {
-  auto BII = Blocks.find(&MBB);
-  if (BII == Blocks.end())
-    return;
-
-  BlockInfo &BI = BII->second;
-
+void SIWholeQuadMode::processBlock(MachineBasicBlock &MBB, BlockInfo &BI,
+                                   bool IsEntry) {
   // This is a non-entry block that is WQM throughout, so no need to do
   // anything.
   if (!IsEntry && BI.Needs == StateWQM && BI.OutNeeds != StateExact) {
@@ -1283,7 +1290,7 @@ void SIWholeQuadMode::processBlock(MachineBasicBlock &MBB, bool IsEntry) {
   // Record initial state is block information.
   BI.InitialState = State;
 
-  for (;;) {
+  for (unsigned Idx = 0;; ++Idx) {
     MachineBasicBlock::iterator Next = II;
     char Needs = StateExact | StateWQM; // Strict mode is disabled by default.
     char OutNeeds = 0;
@@ -1293,6 +1300,10 @@ void SIWholeQuadMode::processBlock(MachineBasicBlock &MBB, bool IsEntry) {
 
     if (FirstStrict == IE)
       FirstStrict = II;
+
+    // Adjust needs if this is first instruction of WQM requiring shader.
+    if (IsEntry && Idx == 0 && (BI.InNeeds & StateWQM))
+      Needs = StateWQM;
 
     // First, figure out the allowed states (Needs) based on the propagated
     // flags.
@@ -1497,15 +1508,22 @@ bool SIWholeQuadMode::lowerCopyInstrs() {
     }
   }
   for (MachineInstr *MI : LowerToCopyInstrs) {
-    if (MI->getOpcode() == AMDGPU::V_SET_INACTIVE_B32 ||
-        MI->getOpcode() == AMDGPU::V_SET_INACTIVE_B64) {
-      assert(MI->getNumExplicitOperands() == 3);
-      // the only reason we should be here is V_SET_INACTIVE has
-      // an undef input so it is being replaced by a simple copy.
-      // There should be a second undef source that we should remove.
-      assert(MI->getOperand(2).isUndef());
-      MI->removeOperand(2);
-      MI->untieRegOperand(1);
+    LLVM_DEBUG(dbgs() << "simplify: " << *MI);
+
+    if (MI->getOpcode() == AMDGPU::V_SET_INACTIVE_B32) {
+      assert(MI->getNumExplicitOperands() == 6);
+
+      LiveInterval *RecomputeLI = nullptr;
+      if (MI->getOperand(4).isReg())
+        RecomputeLI = &LIS->getInterval(MI->getOperand(4).getReg());
+
+      MI->removeOperand(5);
+      MI->removeOperand(4);
+      MI->removeOperand(3);
+      MI->removeOperand(1);
+
+      if (RecomputeLI)
+        LIS->shrinkToUses(RecomputeLI);
     } else {
       assert(MI->getNumExplicitOperands() == 2);
     }
@@ -1515,25 +1533,25 @@ bool SIWholeQuadMode::lowerCopyInstrs() {
                           : TII->getMovOpcode(TRI->getRegClassForOperandReg(
                                 *MRI, MI->getOperand(0)));
     MI->setDesc(TII->get(CopyOp));
+    LLVM_DEBUG(dbgs() << " -> " << *MI);
   }
   return !LowerToCopyInstrs.empty() || !LowerToMovInstrs.empty();
 }
 
 bool SIWholeQuadMode::lowerKillInstrs(bool IsWQM) {
   for (MachineInstr *MI : KillInstrs) {
-    MachineBasicBlock *MBB = MI->getParent();
     MachineInstr *SplitPoint = nullptr;
     switch (MI->getOpcode()) {
     case AMDGPU::SI_DEMOTE_I1:
     case AMDGPU::SI_KILL_I1_TERMINATOR:
-      SplitPoint = lowerKillI1(*MBB, *MI, IsWQM);
+      SplitPoint = lowerKillI1(*MI, IsWQM);
       break;
     case AMDGPU::SI_KILL_F32_COND_IMM_TERMINATOR:
-      SplitPoint = lowerKillF32(*MBB, *MI);
+      SplitPoint = lowerKillF32(*MI);
       break;
     }
     if (SplitPoint)
-      splitBlock(MBB, SplitPoint);
+      splitBlock(SplitPoint);
   }
   return !KillInstrs.empty();
 }
@@ -1541,6 +1559,33 @@ bool SIWholeQuadMode::lowerKillInstrs(bool IsWQM) {
 void SIWholeQuadMode::lowerInitExec(MachineInstr &MI) {
   MachineBasicBlock *MBB = MI.getParent();
   bool IsWave32 = ST->isWave32();
+
+  if (MI.getOpcode() == AMDGPU::SI_INIT_WHOLE_WAVE) {
+    assert(MBB == &MBB->getParent()->front() &&
+           "init whole wave not in entry block");
+    Register EntryExec = MRI->createVirtualRegister(TRI->getBoolRC());
+    MachineInstr *SaveExec =
+        BuildMI(*MBB, MBB->begin(), MI.getDebugLoc(),
+                TII->get(IsWave32 ? AMDGPU::S_OR_SAVEEXEC_B32
+                                  : AMDGPU::S_OR_SAVEEXEC_B64),
+                EntryExec)
+            .addImm(-1);
+
+    // Replace all uses of MI's destination reg with EntryExec.
+    MRI->replaceRegWith(MI.getOperand(0).getReg(), EntryExec);
+
+    if (LIS) {
+      LIS->RemoveMachineInstrFromMaps(MI);
+    }
+
+    MI.eraseFromParent();
+
+    if (LIS) {
+      LIS->InsertMachineInstrInMaps(*SaveExec);
+      LIS->createAndComputeVirtRegInterval(EntryExec);
+    }
+    return;
+  }
 
   if (MI.getOpcode() == AMDGPU::SI_INIT_EXEC) {
     // This should be before all vector instructions.
@@ -1656,6 +1701,7 @@ bool SIWholeQuadMode::runOnMachineFunction(MachineFunction &MF) {
   LowerToMovInstrs.clear();
   KillInstrs.clear();
   InitExecInstrs.clear();
+  SetInactiveInstrs.clear();
   StateTransition.clear();
 
   ST = &MF.getSubtarget<GCNSubtarget>();
@@ -1712,6 +1758,21 @@ bool SIWholeQuadMode::runOnMachineFunction(MachineFunction &MF) {
     Changed = true;
   }
 
+  // Check if V_SET_INACTIVE was touched by a strict state mode.
+  // If so, promote to WWM; otherwise lower to COPY.
+  for (MachineInstr *MI : SetInactiveInstrs) {
+    if (LowerToCopyInstrs.contains(MI))
+      continue;
+    if (Instructions[MI].MarkedStates & StateStrict) {
+      Instructions[MI].Needs |= StateStrictWWM;
+      Instructions[MI].Disabled &= ~StateStrictWWM;
+      Blocks[MI->getParent()].Needs |= StateStrictWWM;
+    } else {
+      LLVM_DEBUG(dbgs() << "Has no WWM marking: " << *MI);
+      LowerToCopyInstrs.insert(MI);
+    }
+  }
+
   LLVM_DEBUG(printInfo());
 
   Changed |= lowerLiveMaskQueries();
@@ -1728,12 +1789,15 @@ bool SIWholeQuadMode::runOnMachineFunction(MachineFunction &MF) {
     lowerKillInstrs(true);
     Changed = true;
   } else {
+    // Mark entry for WQM if required.
+    if (GlobalFlags & StateWQM)
+      Blocks[&Entry].InNeeds |= StateWQM;
     // Wave mode switching requires full lowering pass.
-    for (auto BII : Blocks)
-      processBlock(*BII.first, BII.first == &Entry);
+    for (auto &BII : Blocks)
+      processBlock(*BII.first, BII.second, BII.first == &Entry);
     // Lowering blocks causes block splitting so perform as a second pass.
-    for (auto BII : Blocks)
-      lowerBlock(*BII.first);
+    for (auto &BII : Blocks)
+      lowerBlock(*BII.first, BII.second);
     Changed = true;
   }
 

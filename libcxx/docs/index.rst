@@ -38,6 +38,7 @@ Getting Started with libc++
    UserDocumentation
    VendorDocumentation
    Contributing
+   CodingGuidelines
    TestingLibcxx
    ImplementationDefinedBehavior
    Modules
@@ -50,8 +51,6 @@ Getting Started with libc++
    Status/Format
    Status/Parallelism
    Status/PSTL
-   Status/SpecialMath
-   Status/Zip
 
 
 .. toctree::
@@ -218,7 +217,6 @@ Design Documents
    DesignDocs/FeatureTestMacros
    DesignDocs/FileTimeType
    DesignDocs/HeaderRemovalPolicy
-   DesignDocs/NodiscardPolicy
    DesignDocs/NoexceptPolicy
    DesignDocs/PSTLIntegration
    DesignDocs/ThreadingSupportAPI

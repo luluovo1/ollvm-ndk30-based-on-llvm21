@@ -20,9 +20,6 @@
 
 #include "NVPTX.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
-#include "llvm/CodeGen/MachineInstrBuilder.h"
-#include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 
 using namespace llvm;
@@ -78,7 +75,11 @@ bool NVPTXProxyRegErasure::runOnMachineFunction(MachineFunction &MF) {
         assert(InOp.isReg() && "ProxyReg input should be a register.");
         assert(OutOp.isReg() && "ProxyReg output should be a register.");
         RemoveList.push_back(&MI);
-        RAUWBatch.try_emplace(OutOp.getReg(), InOp.getReg());
+        Register replacement = InOp.getReg();
+        // Check if the replacement itself has been replaced.
+        if (auto it = RAUWBatch.find(replacement); it != RAUWBatch.end())
+          replacement = it->second;
+        RAUWBatch.try_emplace(OutOp.getReg(), replacement);
         break;
       }
       }

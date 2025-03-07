@@ -13,6 +13,7 @@
 #include "lldb/Core/Declaration.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/HostInfo.h"
+#include "lldb/lldb-enumerations.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/ExprCXX.h"
@@ -231,6 +232,37 @@ TEST_F(TestTypeSystemClang, TestBuiltinTypeForEncodingAndBitSize) {
   VerifyEncodingAndBitSize(*m_ast, eEncodingIEEE754, 64);
 }
 
+TEST_F(TestTypeSystemClang, TestBuiltinTypeForEmptyTriple) {
+  // Test that we can access type-info of builtin Clang AST
+  // types without crashing even when the target triple is
+  // empty.
+
+  TypeSystemClang ast("empty triple AST", llvm::Triple{});
+
+  // This test only makes sense if the builtin ASTContext types were
+  // not initialized.
+  ASSERT_TRUE(ast.getASTContext().VoidPtrTy.isNull());
+
+  EXPECT_FALSE(ast.GetBuiltinTypeByName(ConstString("int")).IsValid());
+  EXPECT_FALSE(ast.GetBuiltinTypeForDWARFEncodingAndBitSize(
+                      "char", dwarf::DW_ATE_signed_char, 8)
+                   .IsValid());
+  EXPECT_FALSE(ast.GetBuiltinTypeForEncodingAndBitSize(lldb::eEncodingUint, 8)
+                   .IsValid());
+  EXPECT_FALSE(ast.GetPointerSizedIntType(/*is_signed=*/false));
+  EXPECT_FALSE(ast.GetIntTypeFromBitSize(8, /*is_signed=*/false));
+
+  CompilerType record_type = ast.CreateRecordType(
+      nullptr, OptionalClangModuleID(), lldb::eAccessPublic, "Record",
+      llvm::to_underlying(clang::TagTypeKind::Struct),
+      lldb::eLanguageTypeC_plus_plus, std::nullopt);
+  TypeSystemClang::StartTagDeclarationDefinition(record_type);
+  EXPECT_EQ(ast.AddFieldToRecordType(record_type, "field", record_type,
+                                     eAccessPublic, /*bitfield_bit_size=*/8),
+            nullptr);
+  TypeSystemClang::CompleteTagDeclarationDefinition(record_type);
+}
+
 TEST_F(TestTypeSystemClang, TestDisplayName) {
   TypeSystemClang ast("some name", llvm::Triple());
   EXPECT_EQ("some name", ast.getDisplayName());
@@ -279,6 +311,16 @@ TEST_F(TestTypeSystemClang, TestGetEnumIntegerTypeBasicTypes) {
       EXPECT_EQ(basic_compiler_type.GetTypeName(), t.GetTypeName());
     }
   }
+}
+
+TEST_F(TestTypeSystemClang, TestEnumerationValueSign) {
+  CompilerType enum_type = m_ast->CreateEnumerationType(
+      "my_enum_signed", m_ast->GetTranslationUnitDecl(),
+      OptionalClangModuleID(), Declaration(),
+      m_ast->GetBasicType(lldb::eBasicTypeSignedChar), false);
+  auto *enum_decl = m_ast->AddEnumerationValueToEnumerationType(
+      enum_type, Declaration(), "minus_one", -1, 8);
+  EXPECT_TRUE(enum_decl->getInitVal().isSigned());
 }
 
 TEST_F(TestTypeSystemClang, TestOwningModule) {
@@ -997,4 +1039,46 @@ TEST_F(TestTypeSystemClang, GetDeclContextByNameWhenMissingSymbolFile) {
       m_ast->DeclContextFindDeclByName(nullptr, ConstString("SomeName"), true);
 
   EXPECT_TRUE(decls.empty());
+}
+
+TEST_F(TestTypeSystemClang, AddMethodToCXXRecordType_ParmVarDecls) {
+  // Tests that AddMethodToCXXRecordType creates ParmVarDecl's with
+  // a correct clang::DeclContext.
+
+  llvm::StringRef class_name = "S";
+  CompilerType t = clang_utils::createRecord(*m_ast, class_name);
+  m_ast->StartTagDeclarationDefinition(t);
+
+  CompilerType return_type = m_ast->GetBasicType(lldb::eBasicTypeVoid);
+  const bool is_virtual = false;
+  const bool is_static = false;
+  const bool is_inline = false;
+  const bool is_explicit = true;
+  const bool is_attr_used = false;
+  const bool is_artificial = false;
+
+  llvm::SmallVector<CompilerType> param_types{
+      m_ast->GetBasicType(lldb::eBasicTypeInt),
+      m_ast->GetBasicType(lldb::eBasicTypeShort)};
+  CompilerType function_type = m_ast->CreateFunctionType(
+      return_type, param_types.data(), /*num_params*/ param_types.size(),
+      /*variadic=*/false, /*quals*/ 0U);
+  m_ast->AddMethodToCXXRecordType(
+      t.GetOpaqueQualType(), "myFunc", nullptr, function_type,
+      lldb::AccessType::eAccessPublic, is_virtual, is_static, is_inline,
+      is_explicit, is_attr_used, is_artificial);
+
+  // Complete the definition and check the created record.
+  m_ast->CompleteTagDeclarationDefinition(t);
+
+  auto *record = llvm::cast<CXXRecordDecl>(ClangUtil::GetAsTagDecl(t));
+
+  auto method_it = record->method_begin();
+  ASSERT_NE(method_it, record->method_end());
+
+  EXPECT_EQ(method_it->getNumParams(), param_types.size());
+
+  // DeclContext of each parameter should be the CXXMethodDecl itself.
+  EXPECT_EQ(method_it->getParamDecl(0)->getDeclContext(), *method_it);
+  EXPECT_EQ(method_it->getParamDecl(1)->getDeclContext(), *method_it);
 }

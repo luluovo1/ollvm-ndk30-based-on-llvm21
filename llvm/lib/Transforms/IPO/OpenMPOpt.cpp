@@ -19,6 +19,7 @@
 
 #include "llvm/Transforms/IPO/OpenMPOpt.h"
 
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/EnumeratedArray.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SetVector.h"
@@ -36,6 +37,7 @@
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
 #include "llvm/IR/Assumptions.h"
 #include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/CallingConv.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/Dominators.h"
@@ -129,7 +131,7 @@ static cl::opt<bool> PrintModuleBeforeOptimizations(
 
 static cl::opt<bool> AlwaysInlineDeviceFunctions(
     "openmp-opt-inline-device",
-    cl::desc("Inline all applicible functions on the device."), cl::Hidden,
+    cl::desc("Inline all applicable functions on the device."), cl::Hidden,
     cl::init(false));
 
 static cl::opt<bool>
@@ -286,6 +288,19 @@ struct OMPInformationCache : public InformationCache {
         OpenMPPostLink(OpenMPPostLink) {
 
     OMPBuilder.Config.IsTargetDevice = isOpenMPDevice(OMPBuilder.M);
+    const Triple T(OMPBuilder.M.getTargetTriple());
+    switch (T.getArch()) {
+    case llvm::Triple::nvptx:
+    case llvm::Triple::nvptx64:
+    case llvm::Triple::amdgcn:
+      assert(OMPBuilder.Config.IsTargetDevice &&
+             "OpenMP AMDGPU/NVPTX is only prepared to deal with device code.");
+      OMPBuilder.Config.IsGPU = true;
+      break;
+    default:
+      OMPBuilder.Config.IsGPU = false;
+      break;
+    }
     OMPBuilder.initialize();
     initializeRuntimeFunctions(M);
     initializeInternalControlVars();
@@ -1080,6 +1095,7 @@ private:
       CGStartBB->getTerminator()->setSuccessor(0, StartBB);
       assert(EndBB != nullptr && "EndBB should not be null");
       EndBB->getTerminator()->setSuccessor(0, CGEndBB);
+      return Error::success();
     };
 
     auto PrivCB = [&](InsertPointTy AllocaIP, InsertPointTy CodeGenIP, Value &,
@@ -1088,7 +1104,7 @@ private:
       return CodeGenIP;
     };
 
-    auto FiniCB = [&](InsertPointTy CodeGenIP) {};
+    auto FiniCB = [&](InsertPointTy CodeGenIP) { return Error::success(); };
 
     /// Create a sequential execution region within a merged parallel region,
     /// encapsulated in a master construct with a barrier for synchronization.
@@ -1119,8 +1135,9 @@ private:
         CGStartBB->getTerminator()->setSuccessor(0, SeqStartBB);
         assert(SeqEndBB != nullptr && "SeqEndBB should not be null");
         SeqEndBB->getTerminator()->setSuccessor(0, CGEndBB);
+        return Error::success();
       };
-      auto FiniCB = [&](InsertPointTy CodeGenIP) {};
+      auto FiniCB = [&](InsertPointTy CodeGenIP) { return Error::success(); };
 
       // Find outputs from the sequential region to outside users and
       // broadcast their values to them.
@@ -1163,10 +1180,10 @@ private:
 
       OpenMPIRBuilder::LocationDescription Loc(
           InsertPointTy(ParentBB, ParentBB->end()), DL);
-      InsertPointTy SeqAfterIP =
-          OMPInfoCache.OMPBuilder.createMaster(Loc, BodyGenCB, FiniCB);
-
-      OMPInfoCache.OMPBuilder.createBarrier(SeqAfterIP, OMPD_parallel);
+      OpenMPIRBuilder::InsertPointTy SeqAfterIP = cantFail(
+          OMPInfoCache.OMPBuilder.createMaster(Loc, BodyGenCB, FiniCB));
+      cantFail(
+          OMPInfoCache.OMPBuilder.createBarrier(SeqAfterIP, OMPD_parallel));
 
       BranchInst::Create(SeqAfterBB, SeqAfterIP.getBlock());
 
@@ -1238,9 +1255,10 @@ private:
           OriginalFn->getEntryBlock().getFirstInsertionPt());
       // Create the merged parallel region with default proc binding, to
       // avoid overriding binding settings, and without explicit cancellation.
-      InsertPointTy AfterIP = OMPInfoCache.OMPBuilder.createParallel(
-          Loc, AllocaIP, BodyGenCB, PrivCB, FiniCB, nullptr, nullptr,
-          OMP_PROC_BIND_default, /* IsCancellable */ false);
+      OpenMPIRBuilder::InsertPointTy AfterIP =
+          cantFail(OMPInfoCache.OMPBuilder.createParallel(
+              Loc, AllocaIP, BodyGenCB, PrivCB, FiniCB, nullptr, nullptr,
+              OMP_PROC_BIND_default, /* IsCancellable */ false));
       BranchInst::Create(AfterBB, AfterIP.getBlock());
 
       // Perform the actual outlining.
@@ -1277,10 +1295,10 @@ private:
         if (CI != MergableCIs.back()) {
           // TODO: Remove barrier if the merged parallel region includes the
           // 'nowait' clause.
-          OMPInfoCache.OMPBuilder.createBarrier(
+          cantFail(OMPInfoCache.OMPBuilder.createBarrier(
               InsertPointTy(NewCI->getParent(),
                             NewCI->getNextNode()->getIterator()),
-              OMPD_parallel);
+              OMPD_parallel));
         }
 
         CI->eraseFromParent();
@@ -1516,26 +1534,12 @@ private:
     // required an RPC server. If its users were all optimized out then we can
     // safely remove it.
     // TODO: This should be somewhere more common in the future.
-    if (GlobalVariable *GV = M.getNamedGlobal("__llvm_libc_rpc_client")) {
-      if (!GV->getType()->isPointerTy())
+    if (GlobalVariable *GV = M.getNamedGlobal("__llvm_rpc_client")) {
+      if (GV->getNumUses() >= 1)
         return false;
-
-      Constant *C = GV->getInitializer();
-      if (!C)
-        return false;
-
-      // Check to see if the only user of the RPC client is the external handle.
-      GlobalVariable *Client = dyn_cast<GlobalVariable>(C->stripPointerCasts());
-      if (!Client || Client->getNumUses() > 1 ||
-          Client->user_back() != GV->getInitializer())
-        return false;
-
-      Client->replaceAllUsesWith(PoisonValue::get(Client->getType()));
-      Client->eraseFromParent();
 
       GV->replaceAllUsesWith(PoisonValue::get(GV->getType()));
       GV->eraseFromParent();
-
       return true;
     }
     return false;
@@ -1862,7 +1866,7 @@ private:
       if (!ReplVal)
         return false;
       assert(IP && "Expected insertion point!");
-      cast<Instruction>(ReplVal)->moveBefore(IP);
+      cast<Instruction>(ReplVal)->moveBefore(IP->getIterator());
     }
 
     // If we use a call as a replacement value we need to make sure the ident is
@@ -2351,8 +2355,8 @@ struct AAICVTrackerFunction : public AAICVTracker {
       /// TODO: Figure out a way to avoid adding entry in
       /// ICVReplacementValuesMap
       Instruction *Entry = &F->getEntryBlock().front();
-      if (HasChanged == ChangeStatus::CHANGED && !ValuesMap.count(Entry))
-        ValuesMap.insert(std::make_pair(Entry, nullptr));
+      if (HasChanged == ChangeStatus::CHANGED)
+        ValuesMap.try_emplace(Entry);
     }
 
     return HasChanged;
@@ -3523,8 +3527,8 @@ struct AAHeapToSharedFunction : public AAHeapToShared {
           PoisonValue::get(Int8ArrTy), CB->getName() + "_shared", nullptr,
           GlobalValue::NotThreadLocal,
           static_cast<unsigned>(AddressSpace::Shared));
-      auto *NewBuffer =
-          ConstantExpr::getPointerCast(SharedMem, Int8Ty->getPointerTo());
+      auto *NewBuffer = ConstantExpr::getPointerCast(
+          SharedMem, PointerType::getUnqual(M->getContext()));
 
       auto Remark = [&](OptimizationRemark OR) {
         return OR << "Replaced globalized variable with "
@@ -4120,7 +4124,7 @@ struct AAKernelInfoFunction : AAKernelInfo {
         LastEffect = &*IP;
       }
       for (auto &Reorder : Reorders)
-        Reorder.first->moveBefore(Reorder.second);
+        Reorder.first->moveBefore(Reorder.second->getIterator());
     }
 
     SmallVector<std::pair<Instruction *, Instruction *>, 4> GuardedRegions;
@@ -5902,33 +5906,19 @@ bool llvm::omp::isOpenMPKernel(Function &Fn) {
 }
 
 KernelSet llvm::omp::getDeviceKernels(Module &M) {
-  // TODO: Create a more cross-platform way of determining device kernels.
-  NamedMDNode *MD = M.getNamedMetadata("nvvm.annotations");
   KernelSet Kernels;
 
-  if (!MD)
-    return Kernels;
-
-  for (auto *Op : MD->operands()) {
-    if (Op->getNumOperands() < 2)
-      continue;
-    MDString *KindID = dyn_cast<MDString>(Op->getOperand(1));
-    if (!KindID || KindID->getString() != "kernel")
-      continue;
-
-    Function *KernelFn =
-        mdconst::dyn_extract_or_null<Function>(Op->getOperand(0));
-    if (!KernelFn)
-      continue;
-
-    // We are only interested in OpenMP target regions. Others, such as kernels
-    // generated by CUDA but linked together, are not interesting to this pass.
-    if (isOpenMPKernel(*KernelFn)) {
-      ++NumOpenMPTargetRegionKernels;
-      Kernels.insert(KernelFn);
-    } else
-      ++NumNonOpenMPTargetRegionKernels;
-  }
+  for (Function &F : M)
+    if (F.hasKernelCallingConv()) {
+      // We are only interested in OpenMP target regions. Others, such as
+      // kernels generated by CUDA but linked together, are not interesting to
+      // this pass.
+      if (isOpenMPKernel(F)) {
+        ++NumOpenMPTargetRegionKernels;
+        Kernels.insert(&F);
+      } else
+        ++NumNonOpenMPTargetRegionKernels;
+    }
 
   return Kernels;
 }

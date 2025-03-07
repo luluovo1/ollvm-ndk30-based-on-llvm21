@@ -113,7 +113,7 @@ public:
   /// value `initValue`, and the reduction combiner carried over from `reduce`.
   /// TODO: add atomic region.
   static mlir::omp::DeclareReductionOp
-  createDeclareReduction(fir::FirOpBuilder &builder,
+  createDeclareReduction(AbstractConverter &builder,
                          llvm::StringRef reductionOpName,
                          const ReductionIdentifier redId, mlir::Type type,
                          mlir::Location loc, bool isByRef);
@@ -126,8 +126,7 @@ public:
       llvm::SmallVectorImpl<mlir::Value> &reductionVars,
       llvm::SmallVectorImpl<bool> &reduceVarByRef,
       llvm::SmallVectorImpl<mlir::Attribute> &reductionDeclSymbols,
-      llvm::SmallVectorImpl<const semantics::Symbol *> *reductionSymbols =
-          nullptr);
+      llvm::SmallVectorImpl<const semantics::Symbol *> &reductionSymbols);
 };
 
 template <typename FloatOp, typename IntegerOp>
