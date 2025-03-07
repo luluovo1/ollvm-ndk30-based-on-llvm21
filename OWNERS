@@ -1,1 +1,1 @@
-include toolchain/llvm_android:master:/OWNERS
+include toolchain/llvm_android:main:/OWNERS
