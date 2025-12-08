@@ -9,7 +9,7 @@
 #
 # This is independent of LLVM's own "maintainer" concept.
 # See https://llvm.org/docs/DeveloperPolicy.html#maintainers as well as the
-# Maintainers.* files in the the respective subproject directories.
+# Maintainers
 
 /libcxx/ @llvm/reviewers-libcxx
 /libcxxabi/ @llvm/reviewers-libcxxabi
@@ -79,7 +79,8 @@
 /mlir/**/*VectorInterfaces* @dcaballe @nicolasvasilache
 /mlir/**/*VectorToSCF* @banach-space @dcaballe @matthias-springer @nicolasvasilache
 /mlir/**/*VectorToLLVM* @banach-space @dcaballe @nicolasvasilache
-/mlir/**/*X86Vector* @aartbik @dcaballe @nicolasvasilache
+/mlir/**/*X86Vector* @aartbik @dcaballe @nicolasvasila
+che
 /mlir/include/mlir/Dialect/Vector @banach-space @dcaballe @nicolasvasilache @Groverkss
 /mlir/include/mlir/Dialect/Vector/IR @kuhar
 /mlir/lib/Dialect/Vector @banach-space @dcaballe @nicolasvasilache @Groverkss
