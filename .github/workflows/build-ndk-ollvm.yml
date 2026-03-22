@@ -1,0 +1,51 @@
+name: Build NDK OLLVM Toolchain
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Ninja
+        run: choco install ninja
+
+      - name: Configure CMake
+        run: |
+          cmake -S llvm -B build -G Ninja `
+                -DCMAKE_BUILD_TYPE=Release `
+                -DLLVM_ENABLE_PROJECTS="clang;lld" `
+                -DLLVM_TARGETS_TO_BUILD="X86;ARM;AArch64;RISCV" `
+                -DCMAKE_C_COMPILER=cl `
+                -DCMAKE_CXX_COMPILER=cl
+
+      - name: Build Core NDK Tools
+        run: |
+          ninja -C build clang lld llvm-ar llvm-strip llvm-nm llvm-objdump llvm-readelf llvm-objcopy llvm-ranlib
+
+      - name: Prepare Drop-in Replacement for NDK
+        run: |
+          mkdir NDK_OLLVM_Toolchain
+          mkdir NDK_OLLVM_Toolchain\bin
+          
+          # 提取打包核心二进制工具
+          $tools = @("clang.exe", "clang++.exe", "lld.exe", "ld.lld.exe", "llvm-ar.exe", "llvm-strip.exe", "llvm-nm.exe", "llvm-objdump.exe", "llvm-readelf.exe", "llvm-objcopy.exe", "llvm-ranlib.exe")
+          foreach ($tool in $tools) {
+            if (Test-Path "build\bin\$tool") {
+              Copy-Item "build\bin\$tool" "NDK_OLLVM_Toolchain\bin\"
+            }
+          }
+
+      - name: Upload NDK Toolchain Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NDK_OLLVM_Windows
+          path: NDK_OLLVM_Toolchain/
