@@ -15,28 +15,26 @@
 5. 将解压出来的所有 `*.exe` 文件复制并覆盖 NDK 对应的二进制文件。
 
 ## 在 Android.mk / CMake 中启用混淆
-替换工具链后，即可像平常编译 NDK 一样。要启用 OLLVM，仅需要在你的 NDK 编译参数中追加：
+替换工具链后，即可像平常编译 NDK 一样。要启用 OLLVM，仅需要在你的 NDK 编译参数中追加你希望启用的任意组合：
 ```cmake
-# CMakeLists.txt
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mllvm -bcf -mllvm -bcf_prob=70 -mllvm -fla -mllvm -split -mllvm -split_num=3 -mllvm -strcry")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mllvm -bcf -mllvm -bcf_prob=70 -mllvm -fla -mllvm -split -mllvm -split_num=3 -mllvm -strcry")
+# CMakeLists.txt 例子：启用控制流平坦化、字符串加密和隐藏局部控制指令
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mllvm -irobf-fla -mllvm -irobf-cse -mllvm -irobf-icall")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mllvm -irobf-fla -mllvm -irobf-cse -mllvm -irobf-icall")
 ```
-### 支持的参数（沿用 Arkari 选项）
-- `-mllvm -fla`: 控制流平坦化
-- `-mllvm -bcf`: 虚假控制流
-- `-mllvm -bcf_prob=80`: 虚假控制流的概率 (默认 70)
-- `-mllvm -split`: 基本块分割
-- `-mllvm -split_num=3`: 分割次数
-- `-mllvm -strcry`: 字符串加密
-
-## 手动本地编译
-若需要在本地 Windows 进行编译（需要 MSVC/Ninja 以及大量的磁盘和时间）：
-```bat
-cd llvm
-cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_PROJECTS="clang;lld" -DLLVM_TARGETS_TO_BUILD="X86;ARM;AArch64"
-ninja -C build clang lld
-```
-
-## 致谢
-- LLVM Foundation
-- [komimoe/Arkari](https://github.com/komimoe/Arkari)
+### 支持的完整参数（对应你所移植的 Arkari 所有高级混淆套件）
+* **基础混淆：**
+  * `-mllvm -irobf-fla` —— 过程相关控制流平坦混淆
+  * `-mllvm -irobf-cse` —— 字符串(c string)加密功能
+* **深层/隐藏跳转混淆：**
+  * `-mllvm -irobf-indbr` —— 间接跳转，并加密跳转目标
+  * `-mllvm -irobf-icall` —— 间接函数调用，并加密目标函数地址
+  * `-mllvm -irobf-indgv` —— 间接全局变量引用，并加密变量地址
+* **常量保护：**
+  * `-mllvm -irobf-cie` —— 整数常量加密
+  * `-mllvm -irobf-cfe` —— 浮点常量加密
+* **高级保护（实验性功能）：**
+  * `-mllvm -irobf-rtti` —— Microsoft CXXABI RTTI Name 擦除器
+* **一键全部开启：**
+  * `-mllvm -irobf-indbr -mllvm -irobf-icall -mllvm -irobf-indgv -mllvm -irobf-cse -mllvm -irobf-fla -mllvm -irobf-cie -mllvm -irobf-cfe -mllvm -irobf-rtti`
+* **配置文件驱动（推荐）：**
+  * `-mllvm -SamsaraConfigPath="你的配置文件绝对路径"` （注：由于原作者更新，配置选项名字现已演进为 SamsaraConfigPath）
