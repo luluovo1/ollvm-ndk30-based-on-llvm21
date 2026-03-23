@@ -12,6 +12,7 @@ add_llvm_library(LLVMObfuscation
   ConstantIntEncryption.cpp
   ConstantFPEncryption.cpp
   MicrosoftRTTIEraser.cpp
+  PseudoStackOffset.cpp
   
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/Transforms/Obfuscation

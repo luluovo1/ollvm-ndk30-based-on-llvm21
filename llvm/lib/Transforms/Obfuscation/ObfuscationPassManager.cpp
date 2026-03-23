@@ -1,4 +1,5 @@
 #include "llvm/Transforms/Obfuscation/ObfuscationPassManager.h"
+#include "llvm/Transforms/Obfuscation/PseudoStackOffset.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -86,6 +87,12 @@ EnableRttiEraser("irobf-rtti", cl::init(false), cl::NotHidden,
   cl::ZeroOrMore);
 
 
+static cl::opt<bool>
+EnablePseudoStackOffset("irobf-pso", cl::init(false), cl::NotHidden,
+  cl::desc("Enable Pseudo Stack Offset (Anti-Decompiler)."),
+  cl::ZeroOrMore);
+
+
 static cl::opt<std::string>
 SamsaraConfigPath("samsara-cfg", cl::init(std::string{}), cl::NotHidden,
                  cl::desc("Samsara config path."),
@@ -161,6 +168,7 @@ struct ObfuscationPassManager : public ModulePass {
     Opt->cfeOpt()->readOpt(EnableIRConstantFPEncryption,
                            LevelIRConstantFPEncryption);
     Opt->rttiOpt()->readOpt(EnableRttiEraser);
+    Opt->psoOpt()->readOpt(EnablePseudoStackOffset);
     return Opt;
   }
 
@@ -169,7 +177,7 @@ struct ObfuscationPassManager : public ModulePass {
     if (EnableIndirectBr || EnableIndirectCall || EnableIndirectGV ||
         EnableIRFlattening || EnableIRStringEncryption ||
         EnableIRConstantIntEncryption || EnableIRConstantFPEncryption ||
-        EnableRttiEraser || !SamsaraConfigPath.empty()) {
+        EnableRttiEraser || EnablePseudoStackOffset || !SamsaraConfigPath.empty()) {
       EnableIRObfuscation = true;
     }
 
@@ -197,6 +205,10 @@ struct ObfuscationPassManager : public ModulePass {
 
     if (EnableRttiEraser || Options->rttiOpt()->isEnabled()) {
       add(llvm::createMsRttiEraserPass(Options.get()));
+    }
+
+    if (EnablePseudoStackOffset) {
+      add(llvm::createPseudoStackOffsetPass(Options.get()));
     }
     bool Changed = run(M);
 

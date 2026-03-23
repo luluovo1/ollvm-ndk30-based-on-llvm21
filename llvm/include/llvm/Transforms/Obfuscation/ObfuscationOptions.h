@@ -80,12 +80,13 @@ protected:
   std::shared_ptr<ObfOpt> CieOpt = nullptr;
   std::shared_ptr<ObfOpt> CfeOpt = nullptr;
   std::shared_ptr<ObfOpt> RttiOpt = nullptr;
+  std::shared_ptr<ObfOpt> PsoOpt = nullptr;
 
   SmallString<32> RandomSeed;
 
 public:
   SmallVector<std::shared_ptr<ObfOpt>> getAllOpt() const {
-    SmallVector<std::shared_ptr<ObfOpt>, 7> allOpt;
+    SmallVector<std::shared_ptr<ObfOpt>, 9> allOpt;
     allOpt.push_back(IndBrOpt);
     allOpt.push_back(ICallOpt);
     allOpt.push_back(IndGvOpt);
@@ -94,6 +95,7 @@ public:
     allOpt.push_back(CieOpt);
     allOpt.push_back(CfeOpt);
     allOpt.push_back(RttiOpt);
+    allOpt.push_back(PsoOpt);
     return allOpt;
   }
 
@@ -104,7 +106,8 @@ public:
                      const std::shared_ptr<ObfOpt> &cseOpt,
                      const std::shared_ptr<ObfOpt> &cieOpt,
                      const std::shared_ptr<ObfOpt> &cfeOpt,
-                     const std::shared_ptr<ObfOpt> &rttiOpt) {
+                     const std::shared_ptr<ObfOpt> &rttiOpt,
+                     const std::shared_ptr<ObfOpt> &psoOpt) {
     this->IndBrOpt = indBrOpt;
     this->ICallOpt = iCallOpt;
     this->IndGvOpt = indGvOpt;
@@ -113,6 +116,7 @@ public:
     this->CieOpt = cieOpt;
     this->CfeOpt = cfeOpt;
     this->RttiOpt = rttiOpt;
+    this->PsoOpt = psoOpt;
   }
 
   ObfuscationOptions() : ObfuscationOptions{
@@ -122,8 +126,9 @@ public:
                            std::make_shared<ObfOpt>("fla"),
                            std::make_shared<ObfOpt>("cse"),
                            std::make_shared<ObfOpt>("cie"),
-                           std::make_shared<ObfOpt>("cfe"),
-                           std::make_shared<ObfOpt>("rtti")
+                           std::shared_ptr<ObfOpt>(new ObfOpt(false, 0, "cfe")),
+                           std::shared_ptr<ObfOpt>(new ObfOpt(false, 0, "rtti")),
+                           std::shared_ptr<ObfOpt>(new ObfOpt(false, 0, "pso"))
                        } {}
 
   auto indBrOpt() const {
@@ -156,6 +161,10 @@ public:
 
   auto rttiOpt() const {
     return RttiOpt;
+  }
+
+  auto psoOpt() const {
+    return PsoOpt;
   }
 
   auto &randomSeed() {

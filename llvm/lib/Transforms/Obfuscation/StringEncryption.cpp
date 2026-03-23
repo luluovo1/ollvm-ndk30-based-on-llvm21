@@ -170,7 +170,8 @@ bool StringEncryption::runOnModule(Module &M) {
         const uint32_t KeyIndex = i % Entry->EncKey.size();
         const uint8_t CurrentKey = Entry->EncKey[KeyIndex];
         const uint8_t CurrentPlainChar = Entry->Data[i];
-        uint8_t val = CurrentPlainChar;
+        // 增加一个与位置 i 相关的扰动量，打破字符频率分析
+        uint8_t val = static_cast<uint8_t>(CurrentPlainChar + i); 
         val ^= CurrentKey;
         if ((KeyIndex * CurrentKey) % 2 == 0) {
           val = ~val;
@@ -192,7 +193,8 @@ bool StringEncryption::runOnModule(Module &M) {
         const uint32_t KeyIndex = i % Entry->EncKey16.size();
         const uint16_t CurrentKey = Entry->EncKey16[KeyIndex];
         const uint16_t CurrentPlainChar = Entry->Data16[i];
-        uint16_t val = CurrentPlainChar;
+        // 同理，为 UTF-16 字符串增加 i 相关的偏移
+        uint16_t val = static_cast<uint16_t>(CurrentPlainChar + i);
         val ^= CurrentKey;
         if (((KeyIndex * CurrentKey) % 2) == 0) {
           val = ~val;
@@ -486,7 +488,10 @@ Function *StringEncryption::buildDecryptFunction(Module *M, const StringEncrypti
   PHINode *BrDecChar = IRB.CreatePHI(PlainEltTy, 2);
   BrDecChar->addIncoming(DecChar0, LoopBr0);
   BrDecChar->addIncoming(DecChar1, LoopBr1);
-  Value *DecChar = IRB.CreateXor(BrDecChar, KeyChar);
+  // 执行核心外壳反演：(解密中间值 ^ Key) - i
+  Value *Val_AfterXor = IRB.CreateXor(BrDecChar, KeyChar);
+  Value *IdxTrunc = IRB.CreateTrunc(LoopCounter, PlainEltTy);
+  Value *DecChar = IRB.CreateSub(Val_AfterXor, IdxTrunc);
 
   //Store
   LastDecrypted->addIncoming(DecChar, LoopEnd);
