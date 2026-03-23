@@ -26,11 +26,10 @@
 本项目采用 **混合协议** 开源，使用本项目时需注意以下几点：
 
 1.  **第三方协议**: 包含的第三方库代码（如官方 LLVM 系统文件）或其修改部分遵循其原始开源许可（Apache License v2.0 with LLVM Exceptions）。
-2.  **Arkari 授权**: 本项目获取了部分项目代码授权，但仍受原始逻辑条款约束。
-3.  **版权所有**: 项目其余逻辑代码采用本仓库开源许可。
-4.  **法律责任**: 本仓库仅用于提升用户对自身代码的保护能力，实现核心逻辑混淆加密。**禁止任何项目未推仓库主作者授权基于 `komimoe/Arkari` 代码进行商业化二次开发。** 
-5.  **合规使用**: 请务必遵守当地法律法规。对于因滥用、提供违规教程或从事非法活动所造成的一切问题，由使用者和相关引导者承担全部法律责任。
-6.  **权利维护**: 如本项目有任何部分侵犯了您的合法权益，请立即联系我们，我们将核实并予以处理/删除。
+2.  **版权所有**: 项目其余逻辑代码采用本仓库开源许可。
+3.  **法律责任**: 本仓库仅用于提升用户对自身代码的保护能力，实现核心逻辑混淆加密。**禁止任何项目未推仓库主作者授权基于 `komimoe/Arkari` 代码进行商业化二次开发。** 
+4.  **合规使用**: 请务必遵守当地法律法规。对于因滥用、提供违规教程或从事非法活动所造成的一切问题，由使用者和相关引导者承担全部法律责任。
+5.  **权利维护**: 如本项目有任何部分侵犯了您的合法权益，请立即联系我将核实并予以处理/删除。
 
 ### 🔗 引用与致谢
 *   [Android NDK LLVM Source](https://android.googlesource.com/toolchain/llvm-project): 官方基石。
@@ -58,11 +57,10 @@ This project ports **Arkari (OLLVM-21)** advanced obfuscation features into the 
 This project is licensed under a **Mixed License** model:
 
 1.  **Third-party Code**: Third-party libraries (e.g., official LLVM files) or their modifications follow their original licenses (Apache 2.0 with LLVM Exceptions).
-2.  **Arkari Usage**: This project has obtained certain authorizations for code usage while remaining subject to original architectural constraints.
-3.  **Repository Logic**: Other original logic code follows this repository's specific license.
-4.  **Legal Liability**: This repository is strictly for enhancing code protection through obfuscation/encryption. **Unauthorized secondary development based on `komimoe/Arkari` code without explicit permission from the project owner is strictly prohibited.**
-5.  **Compliance**: Users must comply with all local laws and regulations. The user and any party providing illegal usage tutorials bear full responsibility for any issues arising from the use of this software.
-6.  **Rights Protection**: If any part of this project infringes upon your legal rights, please contact us immediately for verification and subsequent removal.
+2.  **Repository Logic**: Other original logic code follows this repository's specific license.
+3.  **Legal Liability**: This repository is strictly for enhancing code protection through obfuscation/encryption. **Unauthorized secondary development based on `komimoe/Arkari` code without explicit permission from the project owner is strictly prohibited.**
+4.  **Compliance**: Users must comply with all local laws and regulations. The user and any party providing illegal usage tutorials bear full responsibility for any issues arising from the use of this software.
+5.  **Rights Protection**: If any part of this project infringes upon your legal rights, please contact us immediately for verification and subsequent removal.
 
 ### 🔗 Credits & Upstream
 *   [Android NDK LLVM Source](https://android.googlesource.com/toolchain/llvm-project).
