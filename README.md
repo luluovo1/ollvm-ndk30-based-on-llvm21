@@ -1,67 +1,62 @@
-# OLLVM for Android NDK 30 (Based on LLVM 21)
+# 🚀 OLLVM for Android NDK 30 (LLVM 21)
 
-[中文版](#中文版) | [English Version](#english-version)
+[![Build NDK OLLVM Toolchain](https://github.com/luluovo1/ollvm-ndk30-based-on-llvm21-/actions/workflows/build-ndk-ollvm.yml/badge.svg)](https://github.com/luluovo1/ollvm-ndk30-based-on-llvm21-/actions/workflows/build-ndk-ollvm.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![LLVM Version](https://img.shields.io/badge/LLVM-21.0.0-red.svg)](https://llvm.org/)
+[![NDK Version](https://img.shields.io/badge/NDK-r30-green.svg)](https://developer.android.com/ndk)
 
----
-
-## 中文版
-
-本项目将 **Arkari (OLLVM-21)** 的高级混淆特性移植到了官方 Android NDK 30 所使用的 LLVM 21 源码中。
-
-它专为 Android 开发者设计，旨在提供一套原生适配最新 NDK 架构且极其难以被反编译的编译环境。通过 GitHub Actions，您可以一键获取可直接替换 NDK 自带 `toolchains/llvm` 目录的混淆版 Clang 工具链。
-
-### 🛡️ 核心混淆功能 (Arkari Suite)
-*   **控制流平坦化 (`-irobf-fla`)**: 打碎原始逻辑流程。
-*   **字符串加密 (`-irobf-cse`)**: 全局 C 字符串加密。
-*   **间接跳转/调用加密 (`-irobf-indbr`, `-irobf-icall`)**: 隐藏函数调用关系。
-*   **常量加密 (`-irobf-cie`, `-irobf-cfe`)**: 整数与浮点数常量加固。
-*   **间接全局变量 (`-irobf-indgv`)**: 隐藏全局变量引用。
-
-### 🚀 快速开始
-1.  **获取工具链**: 前往 [Releases](https://github.com/luluovo1/ollvm-ndk30-based-on-llvm21-/releases) 下载 `ndk-r30-with-ollvm` 对应的构建产物。
-2.  **本地安装**: 解压并将二进制文件替换到你本地 NDK 30 对应的 `bin` 目录中。参考 [README-OLLVM.md](./README-OLLVM.md)。
-
-### ⚖️ 许可与免责声明 (License & Disclaimer)
-
-本项目采用 **混合协议** 开源，使用本项目时需注意以下几点：
-
-1.  **第三方协议**: 包含的第三方库代码（如官方 LLVM 系统文件）或其修改部分遵循其原始开源许可（Apache License v2.0 with LLVM Exceptions）。
-2.  **版权所有**: 项目其余逻辑代码采用本仓库开源许可。
-3.  **法律责任**: 本仓库仅用于提升用户对自身代码的保护能力，实现核心逻辑混淆加密。**禁止任何项目未推仓库主作者授权基于 `komimoe/Arkari` 代码进行商业化二次开发。** 
-4.  **合规使用**: 请务必遵守当地法律法规。对于因滥用、提供违规教程或从事非法活动所造成的一切问题，由使用者和相关引导者承担全部法律责任。
-5.  **权利维护**: 如本项目有任何部分侵犯了您的合法权益，请立即联系我将核实并予以处理/删除。
-
-### 🔗 引用与致谢
-*   [Android NDK LLVM Source](https://android.googlesource.com/toolchain/llvm-project): 官方基石。
-*   [Arkari (KomiMoe)](https://github.com/komimoe/Arkari): 感谢作者在 LLVM 21 混淆器移植上的卓越贡献。更多核心信息请参考 [Arkari 原仓库说明](https://github.com/komimoe/Arkari/blob/master/README_en.md)。
+[中文版](#-中文说明) | [English](#-english-description)
 
 ---
 
-## English Version
+## 📖 中文说明
 
-This project ports **Arkari (OLLVM-21)** advanced obfuscation features into the official LLVM 21 source code utilized by Android NDK 30.
+本项目提供了一套**原生适配 Android NDK 30 (LLVM 21)** 的高级混淆编译方案。它将经典的 OLLVM 逻辑完美移植到了现代的 `New Pass Manager` 架构中，并依托 GitHub Actions 实现自动化云端编译。
 
-### 🛡️ Key Obfuscation Features
-*   **Control Flow Flattening (`-irobf-fla`)**
-*   **String Encryption (`-irobf-cse`)**
-*   **Indirect Branching/Calls (`-irobf-indbr`, `-irobf-icall`)**
-*   **Constant Encryption (`-irobf-cie`, `-irobf-cfe`)**
-*   **Indirect Global Variables (`-irobf-indgv`)**
+### 🌟 为什么选择本项目？
+*   **版本前瞻性**: 市面上大多数 OLLVM 停留在 LLVM 12/13，本项目原生支持最新的 **LLVM 21**。
+*   **NDK 零门槛**: 专为 Android NDK 打造，提供直接替换官方工具链的二进制包。
+*   **全功能集成的 Arkari 引擎**: 深度融合 [Arkari](https://github.com/komimoe/Arkari) 强大的过程间混淆套件。
+*   **一键 CI 体验**: 无需本地配置复杂的 LLVM 构建环境，推送代码即可在 GitHub 自动产出工具链。
 
-### 🚀 Quick Start
-1.  **Download Toolchain**: Visit [Releases](https://github.com/luluovo1/ollvm-ndk30-based-on-llvm21-/releases).
-2.  **Local Setup**: Replace files in NDK 30's `bin` directory. See [README-OLLVM.md](./README-OLLVM.md).
+### �️ 核心功能矩阵
+| 功能名称 | 混淆参数 (Flag) | 描述 |
+| :--- | :--- | :--- |
+| **控制流平坦化** | `-irobf-fla` | 逻辑逻辑打碎，状态机化 |
+| **字符串加密** | `-irobf-cse` | 全局 C 字符串加密对抗搜素 |
+| **间接函数调用** | `-irobf-icall` | 隐藏函数调用地址 |
+| **常量加密** | `-irobf-cie/cfe` | 整数与浮点数字面量加固 |
+| **间接全局变量** | `-irobf-indgv` | 隐藏全局变量的引用路径 |
+| **间接跳转加密** | `-irobf-indbr` | 防止静态分析器还原跳转表 |
+
+### 📅 开发路线图 (Roadmap)
+- [x] 基于 NDK 30 (LLVM 21) 的源码移植。
+- [x] 适配 GitHub Actions 自动化 Windows 版构建。
+- [ ] **[计划中]** 支持更多的混淆强度控制 (Intensity control)。
+- [ ] **[计划中]** 提供 macOS 与 Linux 版本的自动化构建。
+- [ ] **[研究中]** 引入更强的跨过程混淆分析及 VMP 层。
+
+---
+
+## 🌎 English Description
+
+A native **Android NDK 30 (LLVM 21)** obfuscated compiler solution. This project ports advanced OLLVM logic into the modern `New Pass Manager` infrastructure.
+
+### ✨ Highlights
+*   **Cutting Edge**: Most OLLVM ports are stuck in the legacy era (LLVM 12-16). We provide support for **LLVM 21**.
+*   **Developer Friendly**: Drop-in replacement for official NDK toolchains.
+*   **Powered by Arkari**: Leverages the sophisticated inter-procedural obfuscation engine of [Arkari](https://github.com/komimoe/Arkari).
+*   **Automated Pipelines**: Build through GitHub Actions; no local cross-compilation hassle.
 
 ### ⚖️ License & Disclaimer
+This project is for **education and software protection research only**.
+*   **Mixed License**: Parts under LLVM's Apache 2.0 and parts derived from Arkari.
+*   **No Commercial unauthorized development**: Commercial secondary development based on Arkari code in this repo is prohibited without author's permission.
+*   **Compliance**: Users are responsible for legal compliance.
 
-This project is licensed under a **Mixed License** model:
+### 🤝 Contributing
+Contributions are welcome! Please feel free to submit a Pull Request. If you like this project, please give us a **⭐ Star** to show your support!
 
-1.  **Third-party Code**: Third-party libraries (e.g., official LLVM files) or their modifications follow their original licenses (Apache 2.0 with LLVM Exceptions).
-2.  **Repository Logic**: Other original logic code follows this repository's specific license.
-3.  **Legal Liability**: This repository is strictly for enhancing code protection through obfuscation/encryption. **Unauthorized secondary development based on `komimoe/Arkari` code without explicit permission from the project owner is strictly prohibited.**
-4.  **Compliance**: Users must comply with all local laws and regulations. The user and any party providing illegal usage tutorials bear full responsibility for any issues arising from the use of this software.
-5.  **Rights Protection**: If any part of this project infringes upon your legal rights, please contact us immediately for verification and subsequent removal.
-
-### 🔗 Credits & Upstream
-*   [Android NDK LLVM Source](https://android.googlesource.com/toolchain/llvm-project).
-*   [Arkari (KomiMoe)](https://github.com/komimoe/Arkari): Core obfuscation engine implementation. Refer to the [Original Arkari README](https://github.com/komimoe/Arkari/blob/master/README_en.md) for more technical details.
+### 🔗 Credits
+*   **LLVM Foundation**
+*   **KomiMoe / [Arkari](https://github.com/komimoe/Arkari)**
