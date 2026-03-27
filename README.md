@@ -15,7 +15,7 @@
 
 本项目是一套基于 [Arkari](https://github.com/komimoen/Arkari) 的 LLVM 混淆引擎，深度定制并移植到 **Google 官方 Android NDK** 使用的 LLVM 版本（当前为 LLVM 21）上。
 
-本项目**不随LLVM官方分支更新**，而是同步 Google NDK 更新：
+本项目**不随LLVM官方分支更新**，而是同步 Google Android NDK 更新：
 
 - 每当 Google 发布新的 NDK 版本并升级其内置 Clang，本项目将同步跟进，确保混淆工具链始终与最新 NDK 版本兼容。
 - 当前基于 NDK r30 / LLVM 21，后续将持续跟进。
