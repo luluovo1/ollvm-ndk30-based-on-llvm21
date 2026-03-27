@@ -80,7 +80,8 @@ protected:
   std::shared_ptr<ObfOpt> CieOpt = nullptr;
   std::shared_ptr<ObfOpt> CfeOpt = nullptr;
   std::shared_ptr<ObfOpt> RttiOpt = nullptr;
-  std::shared_ptr<ObfOpt> PsoOpt = nullptr;
+  std::shared_ptr<ObfOpt> PsoOpt  = nullptr;
+  std::shared_ptr<ObfOpt> BcfOpt  = nullptr;
 
   SmallString<32> RandomSeed;
 
@@ -96,6 +97,7 @@ public:
     allOpt.push_back(CfeOpt);
     allOpt.push_back(RttiOpt);
     allOpt.push_back(PsoOpt);
+    allOpt.push_back(BcfOpt);
     return allOpt;
   }
 
@@ -107,7 +109,8 @@ public:
                      const std::shared_ptr<ObfOpt> &cieOpt,
                      const std::shared_ptr<ObfOpt> &cfeOpt,
                      const std::shared_ptr<ObfOpt> &rttiOpt,
-                     const std::shared_ptr<ObfOpt> &psoOpt) {
+                     const std::shared_ptr<ObfOpt> &psoOpt,
+                     const std::shared_ptr<ObfOpt> &bcfOpt) {
     this->IndBrOpt = indBrOpt;
     this->ICallOpt = iCallOpt;
     this->IndGvOpt = indGvOpt;
@@ -116,7 +119,8 @@ public:
     this->CieOpt = cieOpt;
     this->CfeOpt = cfeOpt;
     this->RttiOpt = rttiOpt;
-    this->PsoOpt = psoOpt;
+    this->PsoOpt  = psoOpt;
+    this->BcfOpt  = bcfOpt;
   }
 
   ObfuscationOptions() : ObfuscationOptions{
@@ -128,7 +132,8 @@ public:
                            std::make_shared<ObfOpt>("cie"),
                            std::shared_ptr<ObfOpt>(new ObfOpt(false, 0, "cfe")),
                            std::shared_ptr<ObfOpt>(new ObfOpt(false, 0, "rtti")),
-                           std::shared_ptr<ObfOpt>(new ObfOpt(false, 0, "pso"))
+                           std::shared_ptr<ObfOpt>(new ObfOpt(false, 0, "pso")),
+                           std::shared_ptr<ObfOpt>(new ObfOpt(false, 0, "bcf"))
                        } {}
 
   auto indBrOpt() const {
@@ -163,9 +168,9 @@ public:
     return RttiOpt;
   }
 
-  auto psoOpt() const {
-    return PsoOpt;
-  }
+  auto psoOpt() const { return PsoOpt; }
+
+  auto bcfOpt() const { return BcfOpt; }
 
   auto &randomSeed() {
     return RandomSeed;

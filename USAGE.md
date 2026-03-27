@@ -1,111 +1,165 @@
-# OLLVM 工具链使用指南 (Usage Guide)
+# OLLVM-NDK 混淆使用手册
 
-[中文](#中文使用说明) | [English](#english-usage)
+## ⚠️ 参数语法规则
 
----
-
-## 中文使用说明
-
-### 准备工作：下载预编译工具链
-
-前往 [Releases](https://github.com/luluovo1/ollvm-ndk30-based-on-llvm21-/releases) 或
-[Actions Artifacts](https://github.com/luluovo1/ollvm-ndk30-based-on-llvm21-/actions) 页面，
-根据你的环境下载对应压缩包：
-
-| 环境 | 下载文件 |
-|---|---|
-| Windows 64 位 (Intel/AMD) | `OLLVM-Windows-x64.zip` |
-| Linux x86_64 / WSL | `OLLVM-Linux-x64.tar.gz` |
-| macOS (Apple Silicon / Intel) | `OLLVM-macOS-arm64.tar.gz` |
-| Android Termux (AArch64) | 见下方 Termux 说明 |
-
----
-
-### Windows 使用方法
-
-#### 1. 替换 Android NDK (推荐用途)
-```bat
-:: 备份 NDK 原版文件
-mkdir "D:\NDK_BACKUP"
-copy "D:\Android\ndk\30.x.x\toolchains\llvm\prebuilt\windows-x86_64\bin\clang.exe" "D:\NDK_BACKUP\"
-
-:: 将解压出的 bin 文件夹内容覆盖到 NDK bin 目录
-xcopy /y "OLLVM-Windows-x64\bin\*" "D:\Android\ndk\30.x.x\toolchains\llvm\prebuilt\windows-x86_64\bin\"
-```
-
-#### 2. 独立使用（在 CMake 项目中）
-```cmake
-# CMakeLists.txt 中添加混淆参数
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mllvm -irobf-fla -mllvm -irobf-cse -mllvm -irobf-icall")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mllvm -irobf-fla -mllvm -irobf-cse -mllvm -irobf-icall")
-```
-
----
-
-### Linux / WSL 使用方法
+每个 `-mllvm` 后面的 LLVM 选项**必须带自己的 `-` 前缀**：
 
 ```bash
-# 解压
-tar -xzf OLLVM-Linux-x64.tar.gz
-chmod +x OLLVM_Dist/bin/clang*
+# ✅ 正确
+clang -O2 -mllvm -irobf-bcf file.c -o file
 
-# 直接编译（混淆模式）
-./OLLVM_Dist/bin/clang -O2 -mllvm -irobf-fla -mllvm -irobf-cse test.c -o test_obf
-
-# 在 CMakeLists.txt 项目中指定编译器
-cmake -DCMAKE_C_COMPILER=/path/to/OLLVM_Dist/bin/clang \
-      -DCMAKE_CXX_COMPILER=/path/to/OLLVM_Dist/bin/clang++ \
-      -DCMAKE_C_FLAGS="-mllvm -irobf-fla -mllvm -irobf-cse" ...
+# ❌ 错误（缺少选项前面的 -）
+clang -O2 -mllvm irobf-bcf file.c -o file
 ```
 
-#### WSL 环境
-WSL 与标准 Linux 完全一致，下载 Linux 版本即可直接使用。
-
 ---
 
-### Android Termux (AArch64) 环境
-Termux 是 Linux arm64 环境，你需要在 GitHub Actions 增加一个 `ubuntu-latest` 的 arm64 编译 Job（需使用 `runs-on: ubuntu-24.04-arm`），
-或者直接通过 Android NDK 交叉编译一套 AArch64-Linux 的 Clang。
-后续待添加专项支持。
+## 当前支持的混淆参数
 
----
+### 基础启用
 
-### 全部混淆参数速查
-
-| 参数 | 功能 |
+| 参数 | 说明 |
 |---|---|
-| `-mllvm -irobf-fla` | 控制流平坦化 |
-| `-mllvm -irobf-cse` | 字符串加密 |
-| `-mllvm -irobf-icall` | 间接函数调用 |
-| `-mllvm -irobf-indgv` | 间接全局变量 |
-| `-mllvm -irobf-indbr` | 间接跳转 |
-| `-mllvm -irobf-cie` | 整数常量加密 |
-| `-mllvm -irobf-cfe` | 浮点常量加密 |
-
-> **开启全部混淆（不含实验功能）：**
-> ```
-> -mllvm -irobf-fla -mllvm -irobf-cse -mllvm -irobf-icall -mllvm -irobf-indgv -mllvm -irobf-indbr -mllvm -irobf-cie -mllvm -irobf-cfe
-> ```
+| `-mllvm -irobf` | 统一启用所有已通过配置文件开启的混淆 |
 
 ---
 
-## English Usage
+### 控制流混淆
 
-### Download
-Visit [Releases](https://github.com/luluovo1/ollvm-ndk30-based-on-llvm21-/releases) and
-download the package for your platform:
+#### 控制流平坦化 (FLA)
+```bash
+-mllvm -irobf-fla
+```
+将函数内所有基本块放入一个 switch-loop 分发器，隐藏原始控制流结构。switch 值通过 XOR 加密，对抗 IDA 值追踪。
 
-| Platform | Package |
-|---|---|
-| Windows x64 (Intel/AMD) | `OLLVM-Windows-x64.zip` |
-| Linux x86_64 / WSL | `OLLVM-Linux-x64.tar.gz` |
-| macOS | `OLLVM-macOS-arm64.tar.gz` |
+#### 虚假控制流 (BCF) ⭐ 新增
+```bash
+-mllvm -irobf-bcf
+-mllvm -irobf-bcf_prob=70   # 可选，注入概率 0~100，默认 70
+```
+为每个基本块注入以**不透明谓词**（`(x*(x+1))%2==0`，永为真）为条件的虚假分支，构造**不可约控制流图**（Irreducible CFG）。
 
-### Apply to Android NDK (Windows)
-Backup and replace `clang.exe` in your NDK `toolchains/llvm/prebuilt/windows-x86_64/bin/` directory.
+**效果**：触发 IDA Hex-Rays 反编译失败 → `optimizations loop too much`。
 
-### Enable Obfuscation
-Add to your `CMakeLists.txt`:
-```cmake
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mllvm -irobf-fla -mllvm -irobf-cse -mllvm -irobf-icall")
+示例：
+```bash
+# 对所有块强制 100% 注入
+clang -O2 -mllvm -irobf-bcf -mllvm -irobf-bcf_prob=100 test.c -o test
+```
+
+---
+
+### 间接化混淆
+
+#### 间接分支 (INDBR)
+```bash
+-mllvm -irobf-indbr
+-mllvm -level-indbr=1        # 可选，加密循环层数，越高越强
+```
+条件分支目标地址通过加密页表（PageTable）在运行时 XOR 解密后跳转，IDA 无法静态分析跳转目标（触发 `JUMPOUT`）。
+
+#### 间接调用 (ICALL)
+```bash
+-mllvm -irobf-icall
+-mllvm -level-icall=1        # 可选
+```
+将直接函数调用替换为经过加密页表间接化的调用，函数地址在运行时动态解密。
+
+#### 全局变量间接化 (INDGV)
+```bash
+-mllvm -irobf-indgv
+-mllvm -level-indgv=1        # 可选
+```
+全局变量的访问地址通过加密页表间接化，防止逆向工具静态定位全局变量。
+
+---
+
+### 数据混淆
+
+#### 字符串加密 (CSE)
+```bash
+-mllvm -irobf-cse
+```
+所有字符串常量运行时才解密，防止 `strings` 命令或 IDA 直接提取明文。
+
+#### 整数常量加密 (CIE)
+```bash
+-mllvm -irobf-cie
+-mllvm -level-cie=1          # 可选
+```
+对整数类型的常量进行运行时解密保护。
+
+#### 浮点常量加密 (CFE)
+```bash
+-mllvm -irobf-cfe
+-mllvm -level-cfe=1          # 可选
+```
+对浮点类型的常量进行加密。
+
+---
+
+### 其他
+
+#### RTTI 擦除 (RTTI)
+```bash
+-mllvm -irobf-rtti
+```
+擦除 C++ RTTI 信息，防止逆向工具通过类型信息还原类结构（实验性）。
+
+---
+
+## 推荐组合
+
+### 标准混淆（性能影响小）
+```bash
+-mllvm -irobf-cse \
+-mllvm -irobf-icall \
+-mllvm -irobf-indbr
+```
+
+### 强力混淆（中）
+```bash
+-mllvm -irobf-fla \
+-mllvm -irobf-icall \
+-mllvm -irobf-indbr \
+-mllvm -irobf-cse \
+-mllvm -irobf-bcf -mllvm -irobf-bcf_prob=80
+```
+
+### 最强混淆（完全）
+```bash
+-mllvm -irobf-fla \
+-mllvm -irobf-icall \
+-mllvm -level-icall=1 \
+-mllvm -irobf-indbr \
+-mllvm -level-indbr=1 \
+-mllvm -irobf-indgv \
+-mllvm -irobf-cse \
+-mllvm -irobf-cie \
+-mllvm -irobf-bcf -mllvm -irobf-bcf_prob=100
+```
+
+---
+
+## 使用配置文件（samsara）
+
+可以用 JSON 配置文件代替命令行参数：
+```bash
+-mllvm -samsara-cfg=obf_config.json
+```
+
+配置文件中可对特定函数单独控制混淆级别，详见 `Flattening.cpp` / `ObfuscationOptions.cpp` 中的 attribute 注解机制。
+
+---
+
+## 验证混淆效果
+
+```bash
+# 编译一个不混淆的对比版本
+clang -O2 test.c -o test_plain.exe
+
+# 编译混淆版本
+clang -O2 -mllvm -irobf-bcf -mllvm -irobf-bcf_prob=100 test.c -o test_bcf.exe
+
+# 用 IDA 分别打开两个文件，对比 Hex-Rays 反编译结果
 ```

@@ -1,11 +1,11 @@
-#include "llvm/Transforms/Obfuscation/ObfuscationPassManager.h"
-#include "llvm/Transforms/Obfuscation/PseudoStackOffset.h"
 #include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Transforms/Obfuscation/BogusControlFlow.h"
 #include "llvm/Transforms/Obfuscation/ObfuscationOptions.h"
-#include "llvm/IR/Module.h"
+#include "llvm/Transforms/Obfuscation/ObfuscationPassManager.h"
 
 
 #define DEBUG_TYPE "ir-obfuscation"
@@ -86,11 +86,17 @@ EnableRttiEraser("irobf-rtti", cl::init(false), cl::NotHidden,
   cl::desc("Enable RTTI Eraser."),
   cl::ZeroOrMore);
 
-
+// BCF 开关（概率参数 irobf-bcf_prob 定义在 BogusControlFlow.cpp，不在此重复）
 static cl::opt<bool>
-EnablePseudoStackOffset("irobf-pso", cl::init(false), cl::NotHidden,
-  cl::desc("Enable Pseudo Stack Offset (Anti-Decompiler)."),
+EnableBogusControlFlow("irobf-bcf", cl::init(false), cl::NotHidden,
+  cl::desc("Enable Bogus Control Flow (causes IDA optimizations loop too much)."),
   cl::ZeroOrMore);
+
+
+
+
+
+
 
 
 static cl::opt<std::string>
@@ -168,7 +174,8 @@ struct ObfuscationPassManager : public ModulePass {
     Opt->cfeOpt()->readOpt(EnableIRConstantFPEncryption,
                            LevelIRConstantFPEncryption);
     Opt->rttiOpt()->readOpt(EnableRttiEraser);
-    Opt->psoOpt()->readOpt(EnablePseudoStackOffset);
+
+    Opt->bcfOpt()->readOpt(EnableBogusControlFlow);
     return Opt;
   }
 
@@ -177,7 +184,8 @@ struct ObfuscationPassManager : public ModulePass {
     if (EnableIndirectBr || EnableIndirectCall || EnableIndirectGV ||
         EnableIRFlattening || EnableIRStringEncryption ||
         EnableIRConstantIntEncryption || EnableIRConstantFPEncryption ||
-        EnableRttiEraser || EnablePseudoStackOffset || !SamsaraConfigPath.empty()) {
+        EnableRttiEraser ||
+        EnableBogusControlFlow || !SamsaraConfigPath.empty()) {
       EnableIRObfuscation = true;
     }
 
@@ -207,9 +215,11 @@ struct ObfuscationPassManager : public ModulePass {
       add(llvm::createMsRttiEraserPass(Options.get()));
     }
 
-    if (EnablePseudoStackOffset) {
-      add(llvm::createPseudoStackOffsetPass(Options.get()));
+
+    if (EnableBogusControlFlow || Options->bcfOpt()->isEnabled()) {
+      add(llvm::createBogusControlFlowPass(Options.get()));
     }
+
     bool Changed = run(M);
 
     return Changed;
