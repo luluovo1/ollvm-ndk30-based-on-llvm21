@@ -3,8 +3,8 @@ name: Build OLLVM Toolchain (Multi-Platform)
 on:
   push:
     branches: [ "main", "master" ]
-  tags:
-    - 'ndk-*'
+    tags:
+      - 'ndk-*'
   workflow_dispatch:
 
 jobs:
