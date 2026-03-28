@@ -55,19 +55,19 @@
 | 参数名 | 类型 | 默认值 | 说明 |
 |:---|:---:|:---:|:---|
 | `-irobf` | bool | false | 全局启用混淆（配合配置文件使用） |
-| `-irobf-fla` | bool | false | 控制流平坦化：打散所有基本块至 switch 分发器 |
-| `-irobf-bcf` | bool | false | 虚假控制流：注入永远不会到达的假分支 |
+| `-irobf-fla` | bool | false | 控制流平坦化：打散所有基本块至 switch 分发器 · [查看混淆前后效果对比](#fla-控制流平坦化) |
+| `-irobf-bcf` | bool | false | 虚假控制流：注入永远不会到达的假分支 · [查看混淆前后效果对比](#bcf-虚假控制流) |
 | `-irobf-bcf_prob` | int | 70 | BCF 注入概率（0-100），越大执行保护越密集 |
-| `-irobf-indbr` | bool | false | 间接分支：跳转目标运行时解密，触发 IDA JUMPOUT |
+| `-irobf-indbr` | bool | false | 间接分支：跳转目标运行时解密，触发 IDA JUMPOUT · [查看混淆前后效果对比](#indbr-间接分支) |
 | `-level-indbr` | int | 0 | 间接分支加密循环层数（推荐 1，慎用 3+） |
-| `-irobf-icall` | bool | false | 间接调用：函数地址运行时解密 |
+| `-irobf-icall` | bool | false | 间接调用：函数地址运行时解密 · [查看混淆前后效果对比](#icall-间接函数调用) |
 | `-level-icall` | int | 0 | 间接调用加密循环层数（推荐 1） |
 | `-irobf-indgv` | bool | false | 间接全局变量：全局变量访问地址运行时解密 |
 | `-level-indgv` | int | 0 | 全局变量加密循环层数（推荐 1，Lv3 性能损耗极大） |
-| `-irobf-cse` | bool | false | 字符串加密：C 字符串常量在运行时解密 |
-| `-irobf-cie` | bool | false | 整数常量加密：对如 `0xDEADBEEF` 等整数加密 |
+| `-irobf-cse` | bool | false | 字符串加密：C 字符串常量在运行时解密 · [查看混淆前后效果对比](#cse-字符串加密) |
+| `-irobf-cie` | bool | false | 整数常量加密：对如 `0xDEADBEEF` 等整数加密 · [查看混淆前后效果对比](#cie-整数常量加密) |
 | `-level-cie` | int | 0 | 整数常量加密强度 |
-| `-irobf-cfe` | bool | false | 浮点常量加密：对 double/float 字面量加密 |
+| `-irobf-cfe` | bool | false | 浮点常量加密：对 double/float 字面量加密 · [查看混淆前后效果对比](#cfe-浮点常量加密) |
 | `-level-cfe` | int | 0 | 浮点常量加密强度 |
 | `-irobf-rtti` | bool | false | 擦除 C++ RTTI 类型信息（实验性） |
 | `-samsara-cfg` | string | "" | 指向 JSON 格式的混淆配置文件路径 |
@@ -155,6 +155,80 @@ clang -O2 -mllvm -irobf-cse -mllvm -irobf-cie -mllvm -level-cie=1 hotpath.c -o h
 | `3` | `+300% ~ +470%` | 极限保护，非循环代码 |
 
 **禁忌**：`-level-indgv=3` 在每次访问全局变量时都触发多层解密循环，对含游戏状态读取、渲染管线全局变量等高频访问场景，极易导致 Android ANR。
+
+---
+
+## 混淆前后效果对比
+
+以下截图均使用 IDA Pro 的 Hex-Rays 反编译器（F5）生成，源代码见 [`testresu/`](./testresu/)。
+
+---
+
+### BCF 虚假控制流
+
+**源代码**
+
+<img src="images/code_bcf.png" width="800px">
+
+| 原始反汇编（无混淆） | 开启 `-irobf-bcf -irobf-bcf_prob=100` 后 |
+|:---:|:---:|
+| <img src="images/bcf_org.png" width="400px"> | <img src="images/bcf.png" width="400px"> |
+
+---
+
+### FLA 控制流平坦化
+
+**源代码**
+
+<img src="images/code_fla.png" width="800px">
+
+| 原始反汇编（无混淆） | 开启 `-irobf-fla` 后 |
+|:---:|:---:|
+| <img src="images/fla_org.png" width="400px"> | <img src="images/fla.png" width="400px"> |
+
+---
+
+### INDBR 间接分支
+
+**源代码**
+
+<img src="images/code_indbr.png" width="800px">
+
+| 原始反汇编（无混淆） | 开启 `-irobf-indbr -level-indbr=3` 后 |
+|:---:|:---:|
+| <img src="images/indbr_org.png" width="400px"> | <img src="images/indbr.png" width="400px"> |
+
+---
+
+### ICALL 间接函数调用
+
+**源代码**
+
+<img src="images/code_icall.png" width="800px">
+
+---
+
+### CSE 字符串加密
+
+**源代码**
+
+<img src="images/code_cse.png" width="800px">
+
+---
+
+### CIE 整数常量加密
+
+**源代码**
+
+<img src="images/code_cie.png" width="800px">
+
+---
+
+### CFE 浮点常量加密
+
+**源代码**
+
+<img src="images/code_cfe.png" width="800px">
 
 ---
 
