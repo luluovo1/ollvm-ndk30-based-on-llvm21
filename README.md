@@ -7,32 +7,65 @@
 
 [中文](#中文说明) | [English](#english-description)
 
+> **本仓库基于 [llvm/llvm-project](https://github.com/llvm/llvm-project)（官方 LLVM 源码），在其基础上集成了 [KomiMoe/Arkari](https://github.com/KomiMoe/Arkari) 混淆引擎，并针对 Android NDK 环境进行了定制适配。**
+
 ---
 
 ## 中文说明
 
 ### 项目简介
 
-本项目是一套基于 [Arkari](https://github.com/komimoen/Arkari) 的 LLVM 混淆引擎，深度定制并移植到 **Google 官方 Android NDK** 使用的 LLVM 版本（当前为 LLVM 21）上。
+本项目是一套基于 [Arkari](https://github.com/KomiMoe/Arkari) 的 LLVM 混淆引擎，深度定制并移植到 **Google 官方 Android NDK** 使用的 LLVM 版本（当前为 LLVM 21）上。
 
-本项目**不随LLVM官方分支更新**，而是同步 Google Android NDK 更新：
+本项目以 **NDK r30 / LLVM 21** 为稳定基准版本，不追随 LLVM 官方主分支更新，以确保混淆工具链的长期稳定性与可靠性。
 
-- 每当 Google 发布新的 NDK 版本并升级其内置 Clang，本项目将同步跟进，确保混淆工具链始终与最新 NDK 版本兼容。
-- 当前基于 NDK r30 / LLVM 21，后续将持续跟进。
+---
+
+### 快速开始
+
+#### 1. 下载预编译工具链
+
+前往 [Releases](https://github.com/luluovo1/ollvm-ndk30-based-on-llvm21-/releases) 页面下载对应平台的预编译工具链压缩包，解压到本地任意目录（路径不要包含中文或空格）。
+
+#### 2. 在 Android CMake 项目中接入
+
+在 `CMakeLists.txt` 中通过 `target_compile_options` 添加混淆参数：
+
+```cmake
+# 推荐第一档：普通业务逻辑全局保护
+target_compile_options(your_target PRIVATE
+    -mllvm -irobf-cse
+    -mllvm -irobf-icall
+    -mllvm -irobf-indbr -mllvm -level-indbr=1
+)
+```
+
+如需直接调用 clang：
+
+```bash
+export PATH=/path/to/ollvm-toolchain/bin:$PATH
+clang -O2 -mllvm -irobf-cse -mllvm -irobf-icall foo.c -o foo
+```
+
+#### 3. 验证混淆生效
+
+- 使用 `strings` 命令检查 `.so` 中是否仍有明文字符串（开启 `-irobf-cse` 后应消失）
+- 使用 IDA Pro 打开 `.so`，查看函数反编译结果是否出现 `JUMPOUT` 或混乱的 switch 结构
 
 ---
 
 ### 差异
 
-本项目以 [Arkari](https://github.com/komimoen/Arkari) 作为混淆核心引擎基础：
+
+本项目以 [Arkari](https://github.com/KomiMoe/Arkari) 作为混淆核心引擎基础：
 
 | 对比维度 | Arkari | 本项目 |
 |:---|:---|:---|
-| 目标平台 | 通用 LLVM / iOS | 专为 NDK 定制，并同时适配Windows |
-| LLVM 版本 | 官方 LLVM 分支 | 跟随 Google NDK 官方 LLVM 21 |
-| 控制流平坦化 (FLA) | 标准实现 | ArkariLLVM迁移 |
-| 间接分支 (INDBR) | 标准加密页表 | ArkariLLVM迁移 |
-| 间接调用 (ICALL) | 标准加密页表 | ArkariLLVM迁移 |
+| 目标平台 | 通用 LLVM / iOS | 专为 NDK 定制，并同时适配 Windows |
+| LLVM 版本 | 官方 LLVM 分支 | Google NDK 官方 LLVM 21 |
+| 控制流平坦化 (FLA) | 标准实现 | 基于 Arkari 适配迁移 |
+| 间接分支 (INDBR) | 标准加密页表 | 基于 Arkari 适配迁移 |
+| 间接调用 (ICALL) | 标准加密页表 | 基于 Arkari 适配迁移 |
 | 虚假控制流 (BCF) | 不含 | 包含 |
 | 主动栈破坏 | 不含 | 弃用 |
 | 兼容性 | 通用 | 通用 |
@@ -234,13 +267,13 @@ clang -O2 -mllvm -irobf-cse -mllvm -irobf-cie -mllvm -level-cie=1 hotpath.c -o h
 
 ### License & Credits
 
-本项目基于 LLVM Apache 2.0 协议，混淆引擎部分基于 [Arkari](https://github.com/komimoen/Arkari)。
+本项目基于 LLVM Apache 2.0 协议，混淆引擎部分基于 [Arkari](https://github.com/KomiMoe/Arkari)。
 
 仅供学习和软件保护研究用途，请勿用于任何违法用途，用户需自行承担合规责任。
 
 **Credits:**
-- [LLVM Foundation](https://llvm.org/)
-- [KomiMoe / Arkari](https://github.com/komimoen/Arkari)
+- [LLVM Foundation](https://llvm.org/) — [llvm/llvm-project](https://github.com/llvm/llvm-project)（官方 LLVM 上游）
+- [KomiMoe / Arkari](https://github.com/KomiMoe/Arkari)（混淆引擎上游）
 
 ---
 
@@ -248,7 +281,24 @@ clang -O2 -mllvm -irobf-cse -mllvm -irobf-cie -mllvm -level-cie=1 hotpath.c -o h
 
 This project provides an obfuscated Android NDK toolchain based on **LLVM 21 + Arkari**, specifically targeting Android Native (.so) library protection.
 
-This project **tracks Google's official NDK releases**. Whenever Google ships a new NDK with an upgraded clang, this project will be updated to keep the obfuscation toolchain in sync.
+> **This repository is a fork of [llvm/llvm-project](https://github.com/llvm/llvm-project) with [KomiMoe/Arkari](https://github.com/KomiMoe/Arkari) obfuscation passes integrated and adapted for Google's Android NDK.**
+
+This project uses **NDK r30 / LLVM 21** as a stable baseline and does not track upstream LLVM major releases, prioritizing long-term toolchain stability.
+
+### Quick Start
+
+1. Download the prebuilt toolchain from [Releases](https://github.com/luluovo1/ollvm-ndk30-based-on-llvm21-/releases).
+2. Add obfuscation flags in your `CMakeLists.txt`:
+
+```cmake
+target_compile_options(your_target PRIVATE
+    -mllvm -irobf-cse
+    -mllvm -irobf-icall
+    -mllvm -irobf-indbr -mllvm -level-indbr=1
+)
+```
+
+3. Build your project as usual. See the Chinese section above for detailed parameter references and benchmarks.
 
 ### What's Different from Arkari
 
